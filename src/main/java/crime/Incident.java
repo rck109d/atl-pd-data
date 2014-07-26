@@ -18,7 +18,7 @@ public final class Incident {
   }
   
   static {
-    Map<String, String> backingMap = new LinkedHashMap<String, String>();
+    Map<String, String> backingMap = new LinkedHashMap<>();
     backingMap.put("yellow", "Aggravated Assault");
     backingMap.put("purple", "Auto Theft");
     backingMap.put("orange", "Drug Arrest");

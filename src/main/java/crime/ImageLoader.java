@@ -131,7 +131,7 @@ public class ImageLoader {
   static void doDiskLoaderThreadWork() {
     final Set<MultiKey> toLoad;
     synchronized (segmentsToLoadFromDisk) {
-      toLoad = new HashSet<MultiKey>(segmentsToLoadFromDisk);
+      toLoad = new HashSet<>(segmentsToLoadFromDisk);
     }
     if (!toLoad.isEmpty()) {
       final ExecutorService threadPool = Executors.newFixedThreadPool(2, mptf);

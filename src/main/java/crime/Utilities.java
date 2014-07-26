@@ -35,11 +35,11 @@ public final class Utilities {
   }
   
   public static byte[] readFileBytes(File file) throws IOException {
-    final RandomAccessFile f = new RandomAccessFile(file, "r");
-    byte[] b = new byte[(int)f.length()];
-    f.read(b);
-    f.close();
-    return b;
+    try (final RandomAccessFile f = new RandomAccessFile(file, "r")) {
+      byte[] b = new byte[(int)f.length()];
+      f.read(b);
+      return b;
+    }
   }
   
   public static byte[] readBytes(final InputStream in) throws IOException {

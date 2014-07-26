@@ -30,7 +30,7 @@ public class MapSegment {
   }
   
   int                        age;
-  private Set<CrimeBubble>  bubbles      = new HashSet<CrimeBubble>();
+  private Set<CrimeBubble>  bubbles      = new HashSet<>();
   BufferedImage              crimeImage  = null;
   private BufferedImage      image        = null;
   

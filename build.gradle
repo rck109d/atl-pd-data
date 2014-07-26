@@ -2,6 +2,8 @@ apply plugin: 'java'
 apply plugin: 'application'
 apply plugin: 'eclipse'
 
+sourceCompatibility = 1.8
+
 mainClassName = 'crime.Test'
 
 repositories {

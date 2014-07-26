@@ -80,7 +80,7 @@ public final class Test {
   
   @SuppressWarnings("boxing")
   static void dailyCrimesByCategory(final int movingAverageRadius, Iterable<Incident> incidents) throws Exception {
-    final Map<String, Map<Date, Collection<Incident>>> catDateMap = new HashMap<String, Map<Date, Collection<Incident>>>();
+    final Map<String, Map<Date, Collection<Incident>>> catDateMap = new HashMap<>();
     
     Date firstDate = null;
     Date lastDate = null;
@@ -107,9 +107,9 @@ public final class Test {
       catDayIncidents.add(incident);
     }
     
-    final Map<String, Map<Date, Double>> cateDateMA = new HashMap<String, Map<Date, Double>>();
+    final Map<String, Map<Date, Double>> cateDateMA = new HashMap<>();
     for (final Map.Entry<String, Map<Date, Collection<Incident>>> catDateEntry : catDateMap.entrySet()) {
-      final Map<Date, Double> movingAverageForCat = new HashMap<Date, Double>();
+      final Map<Date, Double> movingAverageForCat = new HashMap<>();
       for (final Date date1 : dateIterator(firstDate, lastDate)) {
         double sum = 0;
         for (final Date date2 : dateIterator(firstDate, lastDate)) {
@@ -125,31 +125,31 @@ public final class Test {
     
     final String outFileName = "out/crimeDaysByCat " + System.currentTimeMillis() + ".txt";
     final File file = new File(outFileName);
-    final PrintWriter pr = new PrintWriter(file);
-    pr.print("\t");
-    for (String cat : Incident.marker2category.values()) {
-      pr.print(cat + "\t");
-    }
-    pr.println();
-    
-    final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-    final Calendar iter = Calendar.getInstance();
-    iter.setTime(firstDate);
-    final Calendar lastCal = Calendar.getInstance();
-    lastCal.setTime(lastDate);
-    while (!iter.after(lastCal)) {
-      final Date time = iter.getTime();
-      pr.print(sdf.format(time));
-      for (final String cat : Incident.marker2category.values()) {
-        final Double val = cateDateMA.get(cat) == null ? 0 : cateDateMA.get(cat).get(time);
-        double num = val == null ? 0 : val;
-        pr.print("\t" + num);
+    try(final PrintWriter pr = new PrintWriter(file)){
+      pr.print("\t");
+      for (String cat : Incident.marker2category.values()) {
+        pr.print(cat + "\t");
       }
       pr.println();
-      iter.add(Calendar.DAY_OF_YEAR, 1);
+      
+      final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+      final Calendar iter = Calendar.getInstance();
+      iter.setTime(firstDate);
+      final Calendar lastCal = Calendar.getInstance();
+      lastCal.setTime(lastDate);
+      while (!iter.after(lastCal)) {
+        final Date time = iter.getTime();
+        pr.print(sdf.format(time));
+        for (final String cat : Incident.marker2category.values()) {
+          final Double val = cateDateMA.get(cat) == null ? 0 : cateDateMA.get(cat).get(time);
+          double num = val == null ? 0 : val;
+          pr.print("\t" + num);
+        }
+        pr.println();
+        iter.add(Calendar.DAY_OF_YEAR, 1);
+      }
+      System.out.println("saved to " + file.getCanonicalPath());
     }
-    pr.close();
-    System.out.println("saved to " + file.getCanonicalPath());
   }
   
   static final Iterable<Date> dateIterator(final Date from, final Date to) {
@@ -190,30 +190,30 @@ public final class Test {
   
   static final void saveIncidentsToKML(Collection<Incident> incidents, String filePath, String documentName) throws Exception {
     File file = new File(filePath);
-    PrintWriter pr = new PrintWriter(file);
-    pr.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-    pr.println("<kml xmlns=\"http://www.opengis.net/kml/2.2\">");
-    pr.println("  <Document>");
-    for (Incident incident : incidents) {
-      pr.println("    <Placemark>");
-      pr.println("      <name>" + incident.type + "</name>");
-      pr.println("      <description>");
-      pr.println("        <![CDATA[");
-      pr.println("          <ul>");
-      pr.println("            <li>date:" + incident.reportDate + "</li>");
-      pr.println("            <li>ID:" + incident.id + "</li>");
-      pr.println("          </ul>");
-      pr.println("        ]]>");
-      pr.println("      </description>");
-      pr.println("      <Point>");
-      pr.println("        <coordinates>" + incident.getLongitude() + "," + incident.getLatitude() + "," + "0" + "</coordinates>");
-      pr.println("      </Point>");
-      pr.println("    </Placemark>");
+    try(PrintWriter pr = new PrintWriter(file)) {
+      pr.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+      pr.println("<kml xmlns=\"http://www.opengis.net/kml/2.2\">");
+      pr.println("  <Document>");
+      for (Incident incident : incidents) {
+        pr.println("    <Placemark>");
+        pr.println("      <name>" + incident.type + "</name>");
+        pr.println("      <description>");
+        pr.println("        <![CDATA[");
+        pr.println("          <ul>");
+        pr.println("            <li>date:" + incident.reportDate + "</li>");
+        pr.println("            <li>ID:" + incident.id + "</li>");
+        pr.println("          </ul>");
+        pr.println("        ]]>");
+        pr.println("      </description>");
+        pr.println("      <Point>");
+        pr.println("        <coordinates>" + incident.getLongitude() + "," + incident.getLatitude() + "," + "0" + "</coordinates>");
+        pr.println("      </Point>");
+        pr.println("    </Placemark>");
+      }
+      pr.println("  <name>" + documentName + "</name>");
+      pr.println("  </Document>");
+      pr.println("</kml>");
     }
-    pr.println("  <name>" + documentName + "</name>");
-    pr.println("  </Document>");
-    pr.println("</kml>");
-    pr.close();
   }
   
   static final BoundingBox boundingBoxOfIncidents(Iterable<Incident> incidents) {
@@ -516,7 +516,7 @@ public final class Test {
     
     SimpleDateFormat toyyyyMMdd = new SimpleDateFormat("yyyyMMdd");
     
-    List<Date> days = new LinkedList<Date>();
+    List<Date> days = new LinkedList<>();
     for (Calendar day = getCalendar(fromCal.getTime()); day.before(toCal); day.add(Calendar.DAY_OF_YEAR, 1)) {
       days.add(day.getTime());
     }
@@ -535,7 +535,7 @@ public final class Test {
       String imageName = "heatmap-" + name + "-" + toyyyyMMdd.format(day) + "-" + OSM.ZOOM_LEVEL;
       
       final long dayTime = day.getTime();
-      Collection<Incident> incidentsGroup = new LinkedList<Incident>();
+      Collection<Incident> incidentsGroup = new LinkedList<>();
       for (Incident i : incidents) {
         long iMinusDay = i.getReportDateAsDate().getTime() - dayTime;
         if (iMinusDay >= 0 && iMinusDay <= timeSpread) {
@@ -562,7 +562,7 @@ public final class Test {
       String imageName = "heatmap-" + name + "-" + toyyyyMMdd.format(day) + "-" + OSM.ZOOM_LEVEL;
       
       final long dayTime = day.getTime();
-      Collection<Incident> incidentsGroup = new LinkedList<Incident>();
+      Collection<Incident> incidentsGroup = new LinkedList<>();
       for (Incident i : incidents) {
         long iMinusDay = i.getReportDateAsDate().getTime() - dayTime;
         if (iMinusDay >= 0 && iMinusDay <= timeSpread) {
@@ -591,14 +591,14 @@ public final class Test {
   
   @Deprecated
   static final Vector<Incident> getAllIncidentsFromXMLFiles() throws Exception {
-    Vector<Incident> incidents = new Vector<Incident>();
+    Vector<Incident> incidents = new Vector<>();
     
     final File dir = new File("out");
     final File totalFile = new File(dir, "total.txt");
     Properties props = new Properties();
-    FileReader fr = new FileReader(totalFile);
-    props.load(fr);
-    fr.close();
+    try (FileReader fr = new FileReader(totalFile)) {
+      props.load(fr);
+    }
     
     int x = 0;
     while (true) {
@@ -633,15 +633,15 @@ public final class Test {
   @SuppressWarnings("unused")
   private final static String readFileAsString(final String filePath) throws java.io.IOException {
     final StringBuffer fileData = new StringBuffer(1000);
-    final BufferedReader reader = new BufferedReader(new FileReader(filePath));
-    char[] buf = new char[1024];
-    int numRead = 0;
-    while ((numRead = reader.read(buf)) != -1) {
-      final String readData = String.valueOf(buf, 0, numRead);
-      fileData.append(readData);
-      buf = new char[1024];
+    try (final BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+      char[] buf = new char[1024];
+      int numRead = 0;
+      while ((numRead = reader.read(buf)) != -1) {
+        final String readData = String.valueOf(buf, 0, numRead);
+        fileData.append(readData);
+        buf = new char[1024];
+      }
     }
-    reader.close();
     return fileData.toString();
   }
 }

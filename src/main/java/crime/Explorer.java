@@ -160,7 +160,7 @@ public class Explorer extends JComponent {
         int button = e.getButton();
         if (button == 1) {
           if (Explorer.this.polyPoints == null) {
-            Explorer.this.polyPoints = new LinkedList<double[]>();
+            Explorer.this.polyPoints = new LinkedList<>();
           }
           double[] coords = getLongLatFromScreenCoords(new double[] { this.x, this.y });
           Explorer.this.polyPoints.add(coords);
@@ -430,7 +430,7 @@ public class Explorer extends JComponent {
   
   MyMouseListener  mml                        = new MyMouseListener();
   
-  Queue<double[]>  mouseDragHistory           = new ArrayDeque<double[]>();
+  Queue<double[]>  mouseDragHistory           = new ArrayDeque<>();
   
   double           mouseDragLastX             = 0d;
   
@@ -560,7 +560,7 @@ public class Explorer extends JComponent {
     }
     
     final Color redAlpha = new Color(1, 0, 0, 0.4f);
-    final Set<CrimeBubble> allBubbles = new HashSet<CrimeBubble>();
+    final Set<CrimeBubble> allBubbles = new HashSet<>();
     for (int x = topLeft.x; x <= botRight.x; x++) {
       for (int y = topLeft.y; y <= botRight.y; y++) {
         final MultiKey key = new MultiKey(Integer.valueOf(x), Integer.valueOf(y), Integer.valueOf(this.screenZoom));

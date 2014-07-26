@@ -11,8 +11,9 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 
 public class OSM {
@@ -118,7 +119,7 @@ public class OSM {
       return "map-" + this.z + "-" + this.y + "-" + this.x + ".png";
     }
     
-    static final DefaultHttpClient  httpClient  = new DefaultHttpClient();
+    static final HttpClient httpClient  = HttpClientBuilder.create().build();
     
     final BoundingBox getBoundingBox() {
       return this.boundingBox;
@@ -230,8 +231,8 @@ public class OSM {
       for (int x = tileNW.x; x <= tileSE.x; x++) {
         final int finalX = x;
         final int finalY = y;
-        
-        BufferedImage lilImg = ImageLoader.loadSegment(new MultiKey(Integer.valueOf(finalX), Integer.valueOf(finalY), Integer.valueOf(ZOOM_LEVEL)), true).getOSMImage();
+        @SuppressWarnings("boxing")
+        BufferedImage lilImg = ImageLoader.loadSegment(new MultiKey<>(finalX, finalY, ZOOM_LEVEL), true).getOSMImage();
         g.drawImage(lilImg, null, (int)-drawOffsetX + (finalX - tileNW.x) * 256, (int)-drawOffsetY + (finalY - tileNW.y) * 256);
       }
     }

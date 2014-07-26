@@ -25,7 +25,7 @@ import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
-import com.mongodb.Mongo;
+import com.mongodb.MongoClient;
 import com.mongodb.gridfs.GridFS;
 import com.mongodb.gridfs.GridFSDBFile;
 import com.mongodb.gridfs.GridFSInputFile;
@@ -34,15 +34,15 @@ import crime.OSM.BoundingBox;
 
 public class MongoData {
   
-  static Mongo        mongo;
+  static MongoClient   mongoClient;
   static DB            db;
   static DBCollection  incidentsCollection;
   static GridFS        images;
   
   static {
     try {
-      mongo = new Mongo("localhost", 27017);
-      db = mongo.getDB("crime");
+      mongoClient = new MongoClient("localhost", 27017);
+      db = mongoClient.getDB("crime");
       incidentsCollection = db.getCollection("incidents");
       images = new GridFS(db, "images");
     } catch (final UnknownHostException e) {
@@ -97,13 +97,12 @@ public class MongoData {
   }
   
   public static final Iterable<Incident> getAllIncidentsFromMongo() {
-    final Collection<Incident> incidents = new LinkedList<Incident>();
-    final DBCursor cursor = incidentsCollection.find();
-    while (cursor.hasNext()) {
-      final DBObject dbo = cursor.next();
-      incidents.add(dbo2incident(dbo));
+    final Collection<Incident> incidents = new LinkedList<>();
+    try(final DBCursor cursor = incidentsCollection.find()) {
+      while (cursor.hasNext()) {
+        incidents.add(dbo2incident(cursor.next()));
+      }
     }
-    cursor.close();
     return incidents;
   }
   
@@ -141,7 +140,7 @@ public class MongoData {
   }
   
   public static Collection<Incident> getIncidentsWithinBox(final BoundingBox bbox) {
-    final Collection<Incident> incidents = new LinkedList<Incident>();
+    final Collection<Incident> incidents = new LinkedList<>();
     @SuppressWarnings("boxing")
     final BasicDBObject query = new BasicDBObject().append("longlat",
       new BasicDBObject("$within",
@@ -154,16 +153,16 @@ public class MongoData {
       )
     );
     
-    final DBCursor cursor = incidentsCollection.find(query);
-    while (cursor.hasNext()) {
-      incidents.add(dbo2incident(cursor.next()));
+    try(final DBCursor cursor = incidentsCollection.find(query)) {
+      while (cursor.hasNext()) {
+        incidents.add(dbo2incident(cursor.next()));
+      }
     }
-    cursor.close();
     return incidents;
   }
   
   public static Collection<Incident> getIncidentsWithinBoxAndTime(final BoundingBox bbox, long from, long to) {
-    final Collection<Incident> incidents = new LinkedList<Incident>();
+    final Collection<Incident> incidents = new LinkedList<>();
     @SuppressWarnings("boxing")
     final BasicDBObject query = new BasicDBObject("longlat",
       new BasicDBObject("$within",
@@ -180,16 +179,16 @@ public class MongoData {
         .append("$lte", to)
     );
     
-    final DBCursor cursor = incidentsCollection.find(query);
-    while (cursor.hasNext()) {
-      incidents.add(dbo2incident(cursor.next()));
+    try (final DBCursor cursor = incidentsCollection.find(query)) {
+      while (cursor.hasNext()) {
+        incidents.add(dbo2incident(cursor.next()));
+      }
     }
-    cursor.close();
     return incidents;
   }
   
   public static Collection<Incident> getIncidentsWithinPolyAndTime(final double[][] polyPoints, long from, long to) {
-    final Collection<Incident> incidents = new LinkedList<Incident>();
+    final Collection<Incident> incidents = new LinkedList<>();
     final BasicDBList coordinates = new BasicDBList();
     coordinates.add(polyPoints);
     @SuppressWarnings("boxing")
@@ -205,11 +204,11 @@ public class MongoData {
         .append("$lte", to)
     );
     
-    final DBCursor cursor = incidentsCollection.find(query);
-    while (cursor.hasNext()) {
-      incidents.add(dbo2incident(cursor.next()));
+    try(final DBCursor cursor = incidentsCollection.find(query)) {
+      while (cursor.hasNext()) {
+        incidents.add(dbo2incident(cursor.next()));
+      }
     }
-    cursor.close();
     return incidents;
   }
   
@@ -240,9 +239,9 @@ public class MongoData {
         images.remove(id);
         return null;
       }
-      final InputStream inputStream = files.get(0).getInputStream();
-      image = ImageIO.read(inputStream);
-      inputStream.close();
+      try(final InputStream inputStream = files.get(0).getInputStream()){
+        image = ImageIO.read(inputStream);
+      }
     }
     return image;
   }
@@ -251,36 +250,36 @@ public class MongoData {
   public static void extractAndSaveIncidentReportDateTime() {
     System.out.println("main()");
     SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
-    final DBCursor all = incidentsCollection.find();
-    while (all.hasNext()) {
-      try {
-        final DBObject dbo = all.next();
-        final String dateString = dbo.get("reportDate").toString();
-        final Date date = sdf.parse(dateString);
-        dbo.put("reportDateTime", date.getTime());
-        incidentsCollection.update(new BasicDBObject("_id", dbo.get("_id")), dbo);
-      } catch (ParseException e) {
-        e.printStackTrace();
-        continue;
+    try(final DBCursor all = incidentsCollection.find()) {
+      while (all.hasNext()) {
+        try {
+          final DBObject dbo = all.next();
+          final String dateString = dbo.get("reportDate").toString();
+          final Date date = sdf.parse(dateString);
+          dbo.put("reportDateTime", date.getTime());
+          incidentsCollection.update(new BasicDBObject("_id", dbo.get("_id")), dbo);
+        } catch (ParseException e) {
+          e.printStackTrace();
+          continue;
+        }
       }
     }
-    all.close();
     System.out.println("System.exit(0)");
     System.exit(0);
   }
   
   public static Set<Incident> searchIncidentsByType(final String type) {
-    final Set<Incident> incidents = new HashSet<Incident>();
+    final Set<Incident> incidents = new HashSet<>();
     final BasicDBObject query = new BasicDBObject("type", new BasicDBObject()
       .append("$regex", type)
       .append("$options", "i")
     );
-    final DBCursor cursor = incidentsCollection.find(query);
-    while (cursor.hasNext()) {
-      final DBObject dbo = cursor.next();
-      incidents.add(dbo2incident(dbo));
+    try(final DBCursor cursor = incidentsCollection.find(query)) {
+      while (cursor.hasNext()) {
+        final DBObject dbo = cursor.next();
+        incidents.add(dbo2incident(dbo));
+      }
     }
-    cursor.close();
     return incidents;
   }
   
@@ -299,6 +298,7 @@ public class MongoData {
             final DBObject dbo = this.cursor.next();
             return dbo2incident(dbo);
           }
+          
           @Override
           public void remove() {
             throw new UnsupportedOperationException();
