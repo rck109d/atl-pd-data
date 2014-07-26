@@ -9,11 +9,13 @@ repositories {
 }
 
 dependencies {
-    compile 'org.apache.httpcomponents:httpclient:4.3.1'
-    compile 'org.mongodb:mongo-java-driver:2.11.3'
+    compile 'org.apache.httpcomponents:httpclient:4.3.4'
+    compile 'org.mongodb:mongo-java-driver:2.12.2'
     compile 'xerces:xercesImpl:2.11.0'
     compile 'commons-lang:commons-lang:2.6'
+    //'org.apache.commons:commons-lang3:3.3.2'
     compile 'gov.nih.imagej:imagej:1.47'
     compile 'commons-collections:commons-collections:3.2.1'
-    compile 'org.json:json:20131018'
+    //'org.apache.commons:commons-collections4:4.0'
+    compile 'org.json:json:20140107'
 }

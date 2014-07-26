@@ -112,18 +112,18 @@ public class MongoData {
       @Override
       public Iterator<Date> iterator() {
         return new Iterator<Date>() {
-          final private DBCursor  cursor  = incidentsCollection.find(new BasicDBObject(), new BasicDBObject().append("reportDate", Boolean.valueOf(true)));
+          final private Iterator<?> datesIter = incidentsCollection.distinct("reportDate").iterator();
           
           @Override
           public boolean hasNext() {
-            return this.cursor.hasNext();
+            return this.datesIter.hasNext();
           }
           
           @Override
           public Date next() {
             Date date = null;
             try {
-              date = Utilities.MM_dd_yyyy().parse(this.cursor.next().get("reportDate").toString());
+              date = Utilities.MM_dd_yyyy().parse(this.datesIter.next().toString());
             } catch (final Exception e) {
               // do nothing
             }
