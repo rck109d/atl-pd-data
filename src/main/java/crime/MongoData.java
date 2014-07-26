@@ -16,7 +16,7 @@ import java.util.Set;
 
 import javax.imageio.ImageIO;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 
 import com.mongodb.BasicDBList;

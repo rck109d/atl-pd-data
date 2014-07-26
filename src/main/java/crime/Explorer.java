@@ -40,7 +40,7 @@ import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JToolBar;
 
-import org.apache.commons.collections.keyvalue.MultiKey;
+import org.apache.commons.collections4.keyvalue.MultiKey;
 
 import crime.OSM.BoundingBox;
 import crime.OSM.Tile;
