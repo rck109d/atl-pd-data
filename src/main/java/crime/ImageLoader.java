@@ -7,6 +7,7 @@ import java.awt.geom.Ellipse2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorConvertOp;
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
@@ -25,10 +26,14 @@ import java.util.concurrent.TimeUnit;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.collections4.keyvalue.MultiKey;
+import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager;
 import org.apache.http.util.EntityUtils;
 
@@ -37,19 +42,20 @@ import crime.OSM.Tile;
 
 public class ImageLoader {
   
-  static Map<MultiKey, MapSegment>  segments                = Collections.synchronizedMap(new HashMap<MultiKey, MapSegment>());
-  static Set<MultiKey>              segmentsToLoadFromDisk  = Collections.synchronizedSet(new HashSet<MultiKey>());
-  static Set<MultiKey>              segmentsToLoadFromNet    = Collections.synchronizedSet(new HashSet<MultiKey>());
-  private static final DefaultHttpClient    httpClient              = new DefaultHttpClient(new ThreadSafeClientConnManager());
-  private static final int                  segmentExpiryAge        = 50;
-  private static final ThreadFactory        mptf                    = new ThreadFactory() {
-                                                                      @Override
-                                                                      public Thread newThread(final Runnable r) {
-                                                                        final Thread t = new Thread(r);
-                                                                        t.setPriority(Thread.MIN_PRIORITY);
-                                                                        return t;
-                                                                      }
-                                                                    };
+  static Map<MultiKey<Integer>, MapSegment>         segments               = Collections.synchronizedMap(new HashMap<MultiKey<Integer>, MapSegment>());
+  static Set<MultiKey<Integer>>                     segmentsToLoadFromDisk = Collections.synchronizedSet(new HashSet<MultiKey<Integer>>());
+  static Collection<MultiKey<Integer>>              segmentsToLoadFromNet  = Collections.synchronizedSet(new HashSet<MultiKey<Integer>>());
+  private static PoolingHttpClientConnectionManager phccm                  = new PoolingHttpClientConnectionManager();
+  private static final HttpClient                   httpClient             = HttpClients.custom().setConnectionManager(phccm).build();
+  private static final int                          segmentExpiryAge       = 50;
+  private static final ThreadFactory                mptf                   = new ThreadFactory() {
+                                                                             @Override
+                                                                             public Thread newThread(final Runnable r) {
+                                                                               final Thread t = new Thread(r);
+                                                                               t.setPriority(Thread.MIN_PRIORITY);
+                                                                               return t;
+                                                                             }
+                                                                           };
   
   static {
     initNetLoaderThread();
@@ -57,12 +63,13 @@ public class ImageLoader {
     initCrimeLayerThread();
   }
   
-  public static MapSegment loadSegment(final MultiKey imageKey, final boolean immediate) {
+  public static MapSegment loadSegment(final MultiKey<Integer> imageKey, final boolean immediate) {
     MapSegment segment = segments.get(imageKey);
     if (segment != null) {
       return segment;
     } else if (immediate) {
-      final Tile tile = new Tile((Integer)imageKey.getKey(0), (Integer)imageKey.getKey(1), (Integer)imageKey.getKey(2));
+      @SuppressWarnings("boxing")
+      final Tile tile = new Tile(imageKey.getKey(0), imageKey.getKey(1), imageKey.getKey(2));
       BufferedImage image = loadImageFromDisk(tile);
       if (image == null) {
         try {
@@ -129,17 +136,17 @@ public class ImageLoader {
   }
   
   static void doDiskLoaderThreadWork() {
-    final Set<MultiKey> toLoad;
+    final Set<MultiKey<Integer>> toLoad;
     synchronized (segmentsToLoadFromDisk) {
       toLoad = new HashSet<>(segmentsToLoadFromDisk);
     }
     if (!toLoad.isEmpty()) {
       final ExecutorService threadPool = Executors.newFixedThreadPool(2, mptf);
-      for (final MultiKey key : toLoad) {
+      for (final MultiKey<Integer> key : toLoad) {
         threadPool.execute(new Runnable() {
           @Override
           public void run() {
-            final Tile tile = new Tile(((Integer)key.getKey(0)).intValue(), ((Integer)key.getKey(1)).intValue(), ((Integer)key.getKey(2)).intValue());
+            final Tile tile = new Tile(key.getKey(0).intValue(), key.getKey(1).intValue(), key.getKey(2).intValue());
             BufferedImage image = loadImageFromDisk(tile);
             if (image != null) {
               segments.put(key, new MapSegment(tile, image));
@@ -162,14 +169,14 @@ public class ImageLoader {
   }
   
   static void doNetLoaderThreadWork() {
-    final Set<MultiKey> toLoad;
+    final Set<MultiKey<Integer>> toLoad;
     synchronized (segmentsToLoadFromNet) {
-      toLoad = new HashSet<MultiKey>(segmentsToLoadFromNet);
+      toLoad = new HashSet<>(segmentsToLoadFromNet);
     }
     if (!toLoad.isEmpty()) {
       final ExecutorService threadPool = Executors.newFixedThreadPool(2, mptf);
-      for (final MultiKey key : toLoad) {
-        final Tile tile = new Tile(((Integer)key.getKey(0)).intValue(), ((Integer)key.getKey(1)).intValue(), ((Integer)key.getKey(2)).intValue());
+      for (final MultiKey<Integer> key : toLoad) {
+        final Tile tile = new Tile(key.getKey(0).intValue(), key.getKey(1).intValue(), key.getKey(2).intValue());
         threadPool.execute(new Runnable() {
           @Override
           public void run() {
@@ -178,6 +185,8 @@ public class ImageLoader {
               final BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
               if (image != null) {
                 MongoData.saveImage(tile.getImgMongoName(), bytes);
+              } else {
+                throw new RuntimeException("cannot load tile " + tile);
               }
             } catch (final IOException e) {
               e.printStackTrace();
@@ -197,6 +206,23 @@ public class ImageLoader {
     }
   }
   
+  public static void main(String[] args) throws IOException {
+    // test to load a tile
+    @SuppressWarnings("boxing")
+    MultiKey<Integer> key = new MultiKey<>(34807, 52454, 17);
+    final Tile tile = new Tile(key.getKey(0).intValue(), key.getKey(1).intValue(), key.getKey(2).intValue());
+    byte[] bytes = loadImageBytesFromNet(tile);
+    String fileName = key.getKey(0) + "-" + key.getKey(1) + "-" + key.getKey(2) + ".png";
+    File imgFile = new File(fileName);
+    FileUtils.writeByteArrayToFile(imgFile, bytes);
+    System.out.println(imgFile);
+    final BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
+    if (image != null) {
+      MongoData.saveImage(tile.getImgMongoName(), bytes);
+    }
+    System.exit(0);
+  }
+  
   static BufferedImage loadImageFromDisk(final Tile tile) {
     BufferedImage image = null;
     try {
@@ -214,8 +240,10 @@ public class ImageLoader {
   
   static byte[] loadImageBytesFromNet(final Tile tile) throws IOException {
     final String URL = tile.getURL();
-    final HttpGet httppost = new HttpGet(URL);
-    final HttpResponse response = httpClient.execute(httppost);
+    //System.out.println(URL);
+    final HttpGet get = new HttpGet(URL);
+    get.addHeader("User-Agent", "atl-pd-data");
+    final HttpResponse response = httpClient.execute(get);
     final HttpEntity responseEntity = response.getEntity();
     final byte[] imgBytes = EntityUtils.toByteArray(responseEntity);
     return imgBytes;
@@ -226,7 +254,7 @@ public class ImageLoader {
     final long toTime = Explorer.dateTo.getTime();
     final Collection<MapSegment> segs;
     synchronized (ImageLoader.segments) {
-      segs = new HashSet<MapSegment>(ImageLoader.segments.values());
+      segs = new HashSet<>(ImageLoader.segments.values());
     }
     final Color redSolid = new Color(1f, 0f, 0f);
     final float radius = 5;
@@ -291,15 +319,15 @@ public class ImageLoader {
   }
   
   public static void expireSegments() {
-    final List<MultiKey> toRemove = new LinkedList<MultiKey>();
+    final List<MultiKey<Integer>> toRemove = new LinkedList<>();
     synchronized (ImageLoader.segments) {
-      for (final Entry<MultiKey, MapSegment> entry : segments.entrySet()) {
+      for (final Entry<MultiKey<Integer>, MapSegment> entry : segments.entrySet()) {
         if (entry.getValue().getAge() > segmentExpiryAge) {
           toRemove.add(entry.getKey());
         }
       }
     }
-    for (final MultiKey key : toRemove) {
+    for (final MultiKey<Integer> key : toRemove) {
       ImageLoader.segments.remove(key);
     }
   }

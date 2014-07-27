@@ -25,9 +25,11 @@ public final class Incident {
     backingMap.put("red", "Homicide");
     backingMap.put("green", "Larceny");
     backingMap.put("white", "Non-Residential Burglary");
+    backingMap.put("teal", "Non-Residential Burglary");
     backingMap.put("blue", "Residential Burglary");
     backingMap.put("brown", "Robbery");
     backingMap.put("gray", "Vehicle Larceny");
+    backingMap.put("grey", "Vehicle Larceny");
     marker2category = Collections.unmodifiableMap(backingMap);
   }
   

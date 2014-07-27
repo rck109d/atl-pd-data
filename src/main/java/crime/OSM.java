@@ -150,6 +150,17 @@ public class OSM {
       
       return command;
     }
+  
+    @Override
+    public String toString() {
+      return ToStringBuilder.reflectionToString(this, new ToStringStyle() {
+        private static final long  serialVersionUID  = 1L;
+        {
+          setUseIdentityHashCode(false);
+          setUseShortClassName(true);
+        }
+      });
+    }
   }
   
   public static void main(String[] args) {

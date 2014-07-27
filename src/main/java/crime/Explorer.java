@@ -543,7 +543,7 @@ public class Explorer extends JComponent {
     
     for (int x = topLeft.x; x <= botRight.x; x++) {
       for (int y = topLeft.y; y <= botRight.y; y++) {
-        final MultiKey key = new MultiKey(Integer.valueOf(x), Integer.valueOf(y), Integer.valueOf(this.screenZoom));
+        final MultiKey<Integer> key = new MultiKey<>(Integer.valueOf(x), Integer.valueOf(y), Integer.valueOf(this.screenZoom));
         final MapSegment segment = ImageLoader.loadSegment(key, false);
         if (segment != null) {
           final BoundingBox bbox = segment.getTile().getBoundingBox();
@@ -563,7 +563,7 @@ public class Explorer extends JComponent {
     final Set<CrimeBubble> allBubbles = new HashSet<>();
     for (int x = topLeft.x; x <= botRight.x; x++) {
       for (int y = topLeft.y; y <= botRight.y; y++) {
-        final MultiKey key = new MultiKey(Integer.valueOf(x), Integer.valueOf(y), Integer.valueOf(this.screenZoom));
+        final MultiKey<Integer> key = new MultiKey<>(Integer.valueOf(x), Integer.valueOf(y), Integer.valueOf(this.screenZoom));
         final MapSegment segment = ImageLoader.loadSegment(key, false);
         if (segment != null) {
           final BoundingBox bbox = segment.getTile().getBoundingBox();
