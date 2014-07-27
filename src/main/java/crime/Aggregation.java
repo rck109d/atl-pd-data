@@ -1,10 +1,8 @@
 package crime;
 
-import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
@@ -27,10 +25,14 @@ import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.conn.scheme.Scheme;
+import org.apache.http.config.Registry;
+import org.apache.http.config.RegistryBuilder;
+import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.util.EntityUtils;
@@ -43,7 +45,15 @@ import org.w3c.dom.NodeList;
 
 public class Aggregation {
   
-  final static DocumentBuilderFactory  documentBuilderFactory  = DocumentBuilderFactory.newInstance();
+  final static DocumentBuilderFactory                     documentBuilderFactory = DocumentBuilderFactory.newInstance();
+  private static final PoolingHttpClientConnectionManager phccm;
+  private static final HttpClient                         httpClient;
+  
+  static {
+    Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory> create().register("http", new TorSocketFactory()).build();
+    phccm = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
+    httpClient = HttpClients.custom().setConnectionManager(phccm).build();
+  }
   
   public static void main(final String[] args) throws Exception {
     // crimes2kmlByNPU();
@@ -132,13 +142,6 @@ public class Aggregation {
     return stats;
   }
   
-  @Deprecated
-  static final void savePrettyXML(final String xml, final String path) throws Exception {
-    final PrintWriter pr = new PrintWriter(new BufferedOutputStream(new FileOutputStream(new File(path))));
-    pr.write(XMLFormatter.format(xml));
-    pr.close();
-  }
-  
   public static final String getQueryResponse(final String zoneID, final String offenseCodes, final String startDate, final String endDate) throws Exception {
     final JSONObject jobj = new JSONObject();
     jobj.put("zoneID", zoneID);
@@ -152,9 +155,7 @@ public class Aggregation {
     se.setContentType(new BasicHeader(HTTP.CONTENT_TYPE, "application/json"));
     httppost.setEntity(se);
     
-    final DefaultHttpClient httpclient = new DefaultHttpClient();
-    httpclient.getConnectionManager().getSchemeRegistry().register(new Scheme("http", 80, new TorSocketFactory()));
-    final HttpResponse response = httpclient.execute(httppost);
+    final HttpResponse response = httpClient.execute(httppost);
     final HttpEntity responseEntity = response.getEntity();
     final String responseString = EntityUtils.toString(responseEntity);
     return responseString;
@@ -167,26 +168,26 @@ public class Aggregation {
   }
   
   static final Set<Incident> getIncidentsForFile(String filePath) throws Exception {
-    Set<Incident> incidents = new HashSet<Incident>();
+    Set<Incident> incidents = new HashSet<>();
     DocumentBuilder db = documentBuilderFactory.newDocumentBuilder();
     Document dom = db.parse(filePath);
     Element docEle = dom.getDocumentElement();
     NodeList nodes = docEle.getElementsByTagName("incidents");
     for (int i = 0; i < nodes.getLength(); i++) {
-      Element element = (Element) nodes.item(i);
+      Element element = (Element)nodes.item(i);
       incidents.add(Incident.create(element));
     }
     return incidents;
   }
   
   static final Set<Incident> getIncidentsFromXMLString(final String xmlString) throws Exception {
-    Set<Incident> incidents = new HashSet<Incident>();
+    Set<Incident> incidents = new HashSet<>();
     DocumentBuilder db = documentBuilderFactory.newDocumentBuilder();
     Document dom = db.parse(new ByteArrayInputStream(xmlString.getBytes()));
     Element docEle = dom.getDocumentElement();
     NodeList nodes = docEle.getElementsByTagName("incidents");
     for (int i = 0; i < nodes.getLength(); i++) {
-      Element element = (Element) nodes.item(i);
+      Element element = (Element)nodes.item(i);
       incidents.add(Incident.create(element));
     }
     return incidents;
@@ -194,51 +195,49 @@ public class Aggregation {
   
   @Deprecated
   static final Set<Incident> combineAllIncidents() throws Exception {
-    Set<Incident> incidents = new HashSet<Incident>();
+    Set<Incident> incidents = new HashSet<>();
     long total = 0;
     final File dir = new File("out/incidents");
-    
     final File totalFile = new File(dir, "total.txt");
-    PrintWriter pr = new PrintWriter(totalFile);
-    
-    long count = 0;
-    for (final File file : dir.listFiles()) {
-      if (file.getName().endsWith(".xml")) {
-        try {
-          final Set<Incident> incidentsFromFile = getIncidentsForFile(file.getPath());
-          for (final Incident incident : incidentsFromFile) {
-            pr.println("id_" + count + "=" + incident.id);
-            pr.println("npu_" + count + "=" + incident.npu);
-            pr.println("beat_" + count + "=" + incident.beat);
-            pr.println("marker_" + count + "=" + incident.marker);
-            pr.println("neighborhood_" + count + "=" + incident.neighborhood);
-            pr.println("number_" + count + "=" + incident.number);
-            pr.println("longitude_" + count + "=" + Double.toString(incident.getLongitude()));
-            pr.println("latitude_" + count + "=" + Double.toString(incident.getLatitude()));
-            pr.println("type_" + count + "=" + incident.type);
-            pr.println("shift_" + count + "=" + incident.shift);
-            if (incident.location.contains("\\n")) {
-              // do nothing
+    try (PrintWriter pr = new PrintWriter(totalFile)) {
+      long count = 0;
+      for (final File file : dir.listFiles()) {
+        if (file.getName().endsWith(".xml")) {
+          try {
+            final Set<Incident> incidentsFromFile = getIncidentsForFile(file.getPath());
+            for (final Incident incident : incidentsFromFile) {
+              pr.println("id_" + count + "=" + incident.id);
+              pr.println("npu_" + count + "=" + incident.npu);
+              pr.println("beat_" + count + "=" + incident.beat);
+              pr.println("marker_" + count + "=" + incident.marker);
+              pr.println("neighborhood_" + count + "=" + incident.neighborhood);
+              pr.println("number_" + count + "=" + incident.number);
+              pr.println("longitude_" + count + "=" + Double.toString(incident.getLongitude()));
+              pr.println("latitude_" + count + "=" + Double.toString(incident.getLatitude()));
+              pr.println("type_" + count + "=" + incident.type);
+              pr.println("shift_" + count + "=" + incident.shift);
+              if (incident.location.contains("\\n")) {
+                // do nothing
+              }
+              pr.println("location_" + count + "=" + incident.location.replaceAll("\\n\\s*", " "));
+              pr.println("reportDate_" + count + "=" + incident.reportDate);
+              
+              count++;
             }
-            pr.println("location_" + count + "=" + incident.location.replaceAll("\\n\\s*", " "));
-            pr.println("reportDate_" + count + "=" + incident.reportDate);
-            
-            count++;
+            total += incidentsFromFile.size();
+          } catch (final Exception e) {
+            // do nothing
           }
-          total += incidentsFromFile.size();
-        } catch (final Exception e) {
-          // do nothing
         }
       }
     }
-    pr.close();
     Utilities.println(Long.valueOf(total));
     return incidents;
   }
   
   @Deprecated
   static final Set<Incident> getIncedentsOfDay(Calendar cal) throws Exception {
-    Set<Incident> incidents = new HashSet<Incident>();
+    Set<Incident> incidents = new HashSet<>();
     for (int zoneID = 1; zoneID <= 6; zoneID++) {
       incidents.addAll(getIncidentsForZoneAndDate(zoneID, cal));
     }
@@ -247,30 +246,30 @@ public class Aggregation {
   
   static final void saveIncidentsToKML(Collection<Incident> incidents, String filePath, String documentName) throws Exception {
     File file = new File(filePath);
-    PrintWriter pr = new PrintWriter(file);
-    pr.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-    pr.println("<kml xmlns=\"http://www.opengis.net/kml/2.2\">");
-    pr.println("  <Document>");
-    for (Incident incident : incidents) {
-      pr.println("    <Placemark>");
-      pr.println("      <name>" + incident.type + "</name>");
-      pr.println("      <description>");
-      pr.println("        <![CDATA[");
-      pr.println("          <ul>");
-      pr.println("            <li>date:" + incident.reportDate + "</li>");
-      pr.println("            <li>ID:" + incident.id + "</li>");
-      pr.println("          </ul>");
-      pr.println("        ]]>");
-      pr.println("      </description>");
-      pr.println("      <Point>");
-      pr.println("        <coordinates>" + incident.getLongitude() + "," + incident.getLatitude() + "," + "0" + "</coordinates>");
-      pr.println("      </Point>");
-      pr.println("    </Placemark>");
+    try (PrintWriter pr = new PrintWriter(file)) {
+      pr.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+      pr.println("<kml xmlns=\"http://www.opengis.net/kml/2.2\">");
+      pr.println("  <Document>");
+      for (Incident incident : incidents) {
+        pr.println("    <Placemark>");
+        pr.println("      <name>" + incident.type + "</name>");
+        pr.println("      <description>");
+        pr.println("        <![CDATA[");
+        pr.println("          <ul>");
+        pr.println("            <li>date:" + incident.reportDate + "</li>");
+        pr.println("            <li>ID:" + incident.id + "</li>");
+        pr.println("          </ul>");
+        pr.println("        ]]>");
+        pr.println("      </description>");
+        pr.println("      <Point>");
+        pr.println("        <coordinates>" + incident.getLongitude() + "," + incident.getLatitude() + "," + "0" + "</coordinates>");
+        pr.println("      </Point>");
+        pr.println("    </Placemark>");
+      }
+      pr.println("  <name>" + documentName + "</name>");
+      pr.println("  </Document>");
+      pr.println("</kml>");
     }
-    pr.println("  <name>" + documentName + "</name>");
-    pr.println("  </Document>");
-    pr.println("</kml>");
-    pr.close();
   }
   
   static final void filterCrimes2KML(Pattern patternType, String name) throws Exception {
@@ -280,7 +279,7 @@ public class Aggregation {
   
   static void dailyCrimesByCategory() throws Exception {
     Collection<Incident> incidents = getAllIncidents(null);
-    Map<String, Map<Date, Vector<Incident>>> catDateMap = new HashMap<String, Map<Date, Vector<Incident>>>();
+    Map<String, Map<Date, Vector<Incident>>> catDateMap = new HashMap<>();
     
     Date firstDate = null;
     Date lastDate = null;
@@ -313,34 +312,30 @@ public class Aggregation {
     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
     for (String cat : Incident.marker2category.values()) {
       File file = new File("out/crimeDaysCat-" + cat + ".txt");
-      PrintWriter pr = new PrintWriter(file);
-      if (catDateMap.get(cat) == null) {
-        pr.close();
-        continue;
-      }
-      Map<Date, Vector<Incident>> datedIncidents = catDateMap.get(cat);
-      
-      Calendar iter = Calendar.getInstance();
-      iter.setTime(firstDate);
-      Calendar lastCal = Calendar.getInstance();
-      lastCal.setTime(lastDate);
-      while (!iter.after(lastCal)) {
-        pr.print(sdf.format(iter.getTime()) + " ");
-        if (datedIncidents.containsKey(iter.getTime())) {
-          pr.println(datedIncidents.get(iter.getTime()).size());
-        } else {
-          pr.println("0");
+      try (PrintWriter pr = new PrintWriter(file)) {
+        if (catDateMap.containsKey(cat)) {
+          Map<Date, Vector<Incident>> datedIncidents = catDateMap.get(cat);
+          Calendar iter = Calendar.getInstance();
+          iter.setTime(firstDate);
+          Calendar lastCal = Calendar.getInstance();
+          lastCal.setTime(lastDate);
+          while (!iter.after(lastCal)) {
+            pr.print(sdf.format(iter.getTime()) + " ");
+            if (datedIncidents.containsKey(iter.getTime())) {
+              pr.println(datedIncidents.get(iter.getTime()).size());
+            } else {
+              pr.println("0");
+            }
+            iter.add(Calendar.DAY_OF_YEAR, 1);
+          }
         }
-        
-        iter.add(Calendar.DAY_OF_YEAR, 1);
       }
-      pr.close();
     }
   }
   
   static void dailyCrimesByCategory2() throws Exception {
     Collection<Incident> incidents = getAllIncidents(null);
-    Map<String, Map<Date, Collection<Incident>>> catDateMap = new HashMap<String, Map<Date, Collection<Incident>>>();
+    Map<String, Map<Date, Collection<Incident>>> catDateMap = new HashMap<>();
     
     Date firstDate = null;
     Date lastDate = null;
@@ -371,163 +366,146 @@ public class Aggregation {
     }
     
     File file = new File("out/crimeDaysByCat.txt");
-    PrintWriter pr = new PrintWriter(file);
-    pr.print("\t");
-    for (String cat : Incident.marker2category.values()) {
-      pr.print(cat + "\t");
-    }
-    pr.println();
-    
-    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-    Calendar iter = Calendar.getInstance();
-    iter.setTime(firstDate);
-    Calendar lastCal = Calendar.getInstance();
-    lastCal.setTime(lastDate);
-    while (!iter.after(lastCal)) {
-      Date time = iter.getTime();
-      pr.print(sdf.format(time));
+    try (PrintWriter pr = new PrintWriter(file)) {
+      pr.print("\t");
       for (String cat : Incident.marker2category.values()) {
-        Collection<Incident> incidentsOnDate = catDateMap.get(cat).get(time);
-        int num = incidentsOnDate != null ? incidentsOnDate.size() : 0;
-        pr.print("\t" + num);
+        pr.print(cat + "\t");
       }
       pr.println();
-      iter.add(Calendar.DAY_OF_YEAR, 1);
+      
+      SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+      Calendar iter = Calendar.getInstance();
+      iter.setTime(firstDate);
+      Calendar lastCal = Calendar.getInstance();
+      lastCal.setTime(lastDate);
+      while (!iter.after(lastCal)) {
+        Date time = iter.getTime();
+        pr.print(sdf.format(time));
+        for (String cat : Incident.marker2category.values()) {
+          Collection<Incident> incidentsOnDate = catDateMap.get(cat).get(time);
+          int num = incidentsOnDate != null ? incidentsOnDate.size() : 0;
+          pr.print("\t" + num);
+        }
+        pr.println();
+        iter.add(Calendar.DAY_OF_YEAR, 1);
+      }
     }
-    pr.close();
   }
   
   static final void touchAllCombinedIncidents() throws Exception {
     final File dir = new File("out");
     final File totalFile = new File(dir, "total.txt");
     Properties props = new Properties();
-    FileReader fr = new FileReader(totalFile);
-    props.load(fr);
-    fr.close();
+    try (FileReader fr = new FileReader(totalFile)) {
+      props.load(fr);
+    }
   }
   
   public static final Collection<Incident> getAllIncidents(Pattern typePattern) throws Exception {
-    Collection<Incident> incidents = new LinkedList<Incident>();
-    
+    Collection<Incident> incidents = new LinkedList<>();
     final File dir = new File("out" + File.separator + "incidents");
     final File totalFile = new File(dir, "total.txt");
-    FileReader fr = new FileReader(totalFile);
-    BufferedReader br = new BufferedReader(fr);
-    
-    @SuppressWarnings("unused")
-    int hit = 0;
-    String[] parts = null;
-    for (int count = 0; true; count++) {
-      if (!br.ready()) {
-        break;
-      }
-      
-      final String id;
-      final String npu;
-      final String beat;
-      final String marker;
-      final String neighborhood;
-      final String number;
-      final String longitude;
-      final String latitude;
-      final String type;
-      final String shift;
-      final String location;
-      final String reportDate;
-      
-      parts = br.readLine().split("=");
-      if (!parts[0].equals("id_" + count)) {
-        break;
-      }
-      id = parts.length > 1 ? parts[1] : "";
-      
-      parts = br.readLine().split("=");
-      if (!parts[0].equals("npu_" + count)) {
-        break;
-      }
-      npu = parts.length > 1 ? parts[1] : "";
-      
-      parts = br.readLine().split("=");
-      if (!parts[0].equals("beat_" + count)) {
-        break;
-      }
-      beat = parts.length > 1 ? parts[1] : "";
-      
-      parts = br.readLine().split("=");
-      if (!parts[0].equals("marker_" + count)) {
-        break;
-      }
-      marker = parts.length > 1 ? parts[1] : "";
-      
-      parts = br.readLine().split("=");
-      if (!parts[0].equals("neighborhood_" + count)) {
-        break;
-      }
-      neighborhood = parts.length > 1 ? parts[1] : "";
-      
-      parts = br.readLine().split("=");
-      if (!parts[0].equals("number_" + count)) {
-        break;
-      }
-      number = parts.length > 1 ? parts[1] : "";
-      
-      parts = br.readLine().split("=");
-      if (!parts[0].equals("longitude_" + count)) {
-        break;
-      }
-      longitude = parts.length > 1 ? parts[1] : "";
-      
-      parts = br.readLine().split("=");
-      if (!parts[0].equals("latitude_" + count)) {
-        break;
-      }
-      latitude = parts.length > 1 ? parts[1] : "";
-      
-      parts = br.readLine().split("=");
-      if (!parts[0].equals("type_" + count)) {
-        break;
-      }
-      type = parts.length > 1 ? parts[1] : "";
-      
-      parts = br.readLine().split("=");
-      if (!parts[0].equals("shift_" + count)) {
-        break;
-      }
-      shift = parts.length > 1 ? parts[1] : "";
-      
-      parts = br.readLine().split("=");
-      if (!parts[0].equals("location_" + count)) {
-        break;
-      }
-      location = parts.length > 1 ? parts[1] : "";
-      
-      parts = br.readLine().split("=");
-      if (!parts[0].equals("reportDate_" + count)) {
-        break;
-      }
-      reportDate = parts.length > 1 ? parts[1] : "";
-      
-      if (typePattern == null || typePattern.matcher(type).matches()) {
-        incidents.add(new Incident(
-          id,
-          npu,
-          beat,
-          marker,
-          neighborhood,
-          number,
-          Double.parseDouble(longitude),
-          Double.parseDouble(latitude),
-          type,
-          shift,
-          location,
-          reportDate,
-          Utilities.MM_dd_yyyy().parse(reportDate).getTime()
-        ));
-        hit++;
+    try (FileReader fr = new FileReader(totalFile); BufferedReader br = new BufferedReader(fr);) {
+      @SuppressWarnings("unused")
+      int hit = 0;
+      String[] parts = null;
+      for (int count = 0; true; count++) {
+        if (!br.ready()) {
+          break;
+        }
+        
+        final String id;
+        final String npu;
+        final String beat;
+        final String marker;
+        final String neighborhood;
+        final String number;
+        final String longitude;
+        final String latitude;
+        final String type;
+        final String shift;
+        final String location;
+        final String reportDate;
+        
+        parts = br.readLine().split("=");
+        if (!parts[0].equals("id_" + count)) {
+          break;
+        }
+        id = parts.length > 1 ? parts[1] : "";
+        
+        parts = br.readLine().split("=");
+        if (!parts[0].equals("npu_" + count)) {
+          break;
+        }
+        npu = parts.length > 1 ? parts[1] : "";
+        
+        parts = br.readLine().split("=");
+        if (!parts[0].equals("beat_" + count)) {
+          break;
+        }
+        beat = parts.length > 1 ? parts[1] : "";
+        
+        parts = br.readLine().split("=");
+        if (!parts[0].equals("marker_" + count)) {
+          break;
+        }
+        marker = parts.length > 1 ? parts[1] : "";
+        
+        parts = br.readLine().split("=");
+        if (!parts[0].equals("neighborhood_" + count)) {
+          break;
+        }
+        neighborhood = parts.length > 1 ? parts[1] : "";
+        
+        parts = br.readLine().split("=");
+        if (!parts[0].equals("number_" + count)) {
+          break;
+        }
+        number = parts.length > 1 ? parts[1] : "";
+        
+        parts = br.readLine().split("=");
+        if (!parts[0].equals("longitude_" + count)) {
+          break;
+        }
+        longitude = parts.length > 1 ? parts[1] : "";
+        
+        parts = br.readLine().split("=");
+        if (!parts[0].equals("latitude_" + count)) {
+          break;
+        }
+        latitude = parts.length > 1 ? parts[1] : "";
+        
+        parts = br.readLine().split("=");
+        if (!parts[0].equals("type_" + count)) {
+          break;
+        }
+        type = parts.length > 1 ? parts[1] : "";
+        
+        parts = br.readLine().split("=");
+        if (!parts[0].equals("shift_" + count)) {
+          break;
+        }
+        shift = parts.length > 1 ? parts[1] : "";
+        
+        parts = br.readLine().split("=");
+        if (!parts[0].equals("location_" + count)) {
+          break;
+        }
+        location = parts.length > 1 ? parts[1] : "";
+        
+        parts = br.readLine().split("=");
+        if (!parts[0].equals("reportDate_" + count)) {
+          break;
+        }
+        reportDate = parts.length > 1 ? parts[1] : "";
+        
+        if (typePattern == null || typePattern.matcher(type).matches()) {
+          incidents.add(new Incident(id, npu, beat, marker, neighborhood, number, Double.parseDouble(longitude), Double.parseDouble(latitude), type, shift, location, reportDate, Utilities.MM_dd_yyyy()
+              .parse(reportDate).getTime()));
+          hit++;
+        }
       }
     }
-    br.close();
-    
     return incidents;
   }
   
@@ -542,36 +520,36 @@ public class Aggregation {
       for (int year = 2004; year <= 2011; year++) {
         String yearString = String.valueOf(year);
         File file = new File("out/KML/npu" + npuString + "_year" + yearString + ".kml");
-        PrintWriter pr = new PrintWriter(file);
-        pr.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-        pr.println("<kml xmlns=\"http://www.opengis.net/kml/2.2\">");
-        pr.println("  <Document>");
         int hits = 0;
-        for (Incident incident : incidents) {
-          if (incident.npu.equalsIgnoreCase(npuString)) {
-            if (incident.reportDate.endsWith(yearString)) {
-              pr.println("    <Placemark>");
-              pr.println("      <name>" + incident.type + "</name>");
-              pr.println("      <description>");
-              pr.println("        <![CDATA[");
-              pr.println("          <ul>");
-              pr.println("            <li>date:" + incident.reportDate + "</li>");
-              pr.println("            <li>ID:" + incident.id + "</li>");
-              pr.println("          </ul>");
-              pr.println("        ]]>");
-              pr.println("      </description>");
-              pr.println("      <Point>");
-              pr.println("        <coordinates>" + incident.getLongitude() + "," + incident.getLatitude() + "," + "0" + "</coordinates>");
-              pr.println("      </Point>");
-              pr.println("    </Placemark>");
-              hits++;
+        try (PrintWriter pr = new PrintWriter(file)) {
+          pr.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+          pr.println("<kml xmlns=\"http://www.opengis.net/kml/2.2\">");
+          pr.println("  <Document>");
+          for (Incident incident : incidents) {
+            if (incident.npu.equalsIgnoreCase(npuString)) {
+              if (incident.reportDate.endsWith(yearString)) {
+                pr.println("    <Placemark>");
+                pr.println("      <name>" + incident.type + "</name>");
+                pr.println("      <description>");
+                pr.println("        <![CDATA[");
+                pr.println("          <ul>");
+                pr.println("            <li>date:" + incident.reportDate + "</li>");
+                pr.println("            <li>ID:" + incident.id + "</li>");
+                pr.println("          </ul>");
+                pr.println("        ]]>");
+                pr.println("      </description>");
+                pr.println("      <Point>");
+                pr.println("        <coordinates>" + incident.getLongitude() + "," + incident.getLatitude() + "," + "0" + "</coordinates>");
+                pr.println("      </Point>");
+                pr.println("    </Placemark>");
+                hits++;
+              }
             }
           }
+          pr.println("  <name>NPU " + npu + ", Year " + year + " (" + hits + ")</name>");
+          pr.println("  </Document>");
+          pr.println("</kml>");
         }
-        pr.println("  <name>NPU " + npu + ", Year " + year + " (" + hits + ")</name>");
-        pr.println("  </Document>");
-        pr.println("</kml>");
-        pr.close();
         if (hits == 0) {
           Utilities.println("omitting " + file.getName());
           file.delete();

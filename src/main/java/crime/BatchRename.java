@@ -27,17 +27,16 @@ public class BatchRename {
         }
         File newFile = new File(dir + File.separator + "renamed", "heatmap-" + newName + "-" + numString + ".png");
         
-        BufferedInputStream in = new BufferedInputStream(new FileInputStream(f));
-        BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(newFile));
-        
-        byte[] buf = new byte[1024 * 4];
-        int len;
-        while ((len = in.read(buf)) > 0) {
-          out.write(buf, 0, len);
+        try(
+          BufferedInputStream in = new BufferedInputStream(new FileInputStream(f));
+          BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(newFile));
+        ) {
+          byte[] buf = new byte[1024 * 4];
+          int len;
+          while ((len = in.read(buf)) > 0) {
+            out.write(buf, 0, len);
+          }
         }
-        in.close();
-        out.close();
-        
         count++;
       }
     }

@@ -5,27 +5,20 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
 
+import org.apache.http.HttpHost;
 import org.apache.http.conn.ConnectTimeoutException;
-import org.apache.http.conn.scheme.SchemeSocketFactory;
-import org.apache.http.params.HttpParams;
+import org.apache.http.conn.socket.ConnectionSocketFactory;
+import org.apache.http.protocol.HttpContext;
 
-public class TorSocketFactory implements SchemeSocketFactory {
-  
+public class TorSocketFactory implements ConnectionSocketFactory {
   @Override
-  public Socket createSocket(HttpParams params) {
+  public Socket createSocket(HttpContext context) throws IOException {
     Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", 9150));
     return new Socket(proxy);
   }
-  
   @Override
-  public boolean isSecure(Socket arg0) throws IllegalArgumentException {
-    return false;
-  }
-  
-  @Override
-  public Socket connectSocket(Socket sock, InetSocketAddress remoteAddress, InetSocketAddress localAddress, HttpParams params) throws IOException, UnknownHostException, ConnectTimeoutException {
+  public Socket connectSocket(int connectTimeout, Socket sock, HttpHost host, InetSocketAddress remoteAddress, InetSocketAddress localAddress, HttpContext context) throws IOException {
     Socket socket;
     if (sock != null) {
       socket = sock;
@@ -42,5 +35,4 @@ public class TorSocketFactory implements SchemeSocketFactory {
     }
     return socket;
   }
-  
 }
