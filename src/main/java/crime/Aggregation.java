@@ -500,8 +500,10 @@ public class Aggregation {
         reportDate = parts.length > 1 ? parts[1] : "";
         
         if (typePattern == null || typePattern.matcher(type).matches()) {
-          incidents.add(new Incident(id, npu, beat, marker, neighborhood, number, Double.parseDouble(longitude), Double.parseDouble(latitude), type, shift, location, reportDate, Utilities.MM_dd_yyyy()
-              .parse(reportDate).getTime()));
+          double lat = Double.parseDouble(latitude);
+          double lng = Double.parseDouble(longitude);
+          final long reportDateTime = Utilities.isoDate().parse(reportDate).getTime();
+          incidents.add(new Incident(id, npu, beat, marker, neighborhood, number, lng, lat, type, shift, location, reportDate, reportDateTime));
           hit++;
         }
       }

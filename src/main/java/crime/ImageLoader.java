@@ -227,7 +227,8 @@ public class ImageLoader {
       image = MongoData.loadImage(tile.getImgMongoName());
       if (image != null) {
         final BufferedImage newImage = new BufferedImage(256, 256, BufferedImage.TYPE_INT_RGB);
-        new ColorConvertOp(ColorSpace.getInstance(ColorSpace.CS_GRAY), null).filter(image, newImage);
+        ColorSpace gray = ColorSpace.getInstance(ColorSpace.CS_GRAY);
+        new ColorConvertOp(gray, null).filter(image, newImage);
         image = newImage;
       }
     } catch (final IOException e) {

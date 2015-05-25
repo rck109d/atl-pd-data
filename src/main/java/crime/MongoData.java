@@ -122,7 +122,7 @@ public class MongoData {
           public Date next() {
             Date date = null;
             try {
-              date = Utilities.MM_dd_yyyy().parse(this.datesIter.next().toString());
+              date = Utilities.isoDate().parse(this.datesIter.next().toString());
             } catch (final Exception e) {
               // do nothing
             }

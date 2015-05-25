@@ -63,7 +63,7 @@ public final class Incident {
     final String location = getElementTextByTag(element, "loction");
     final String reportDate = getElementTextByTag(element, "reportdate");
     
-    return new Incident(id, npu, beat, marker, neighborhood, number, Double.parseDouble(longitude), Double.parseDouble(latitude), type, shift, location, reportDate, Utilities.MM_dd_yyyy().parse(reportDate).getTime());
+    return new Incident(id, npu, beat, marker, neighborhood, number, Double.parseDouble(longitude), Double.parseDouble(latitude), type, shift, location, reportDate, Utilities.isoDate().parse(reportDate).getTime());
   }
   
   public Incident(String id, String npu, String beat, String marker, String neighborhood, String number, double longitude, double latitude, String type, String shift, String location, String reportDate, long reportDateTime) {

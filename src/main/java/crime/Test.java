@@ -21,13 +21,10 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.TreeMap;
-import java.util.Vector;
 
 import javax.imageio.ImageIO;
 
-import crime.Explorer;
 import crime.OSM.BoundingBox;
 
 public final class Test {
@@ -465,7 +462,7 @@ public final class Test {
           iter.setTime(earlyCal.getTime());
           g.setColor(Color.white);
           while (!iter.after(rightSideCal)) {
-            final String iterStr = Utilities.MM_dd_yyyy().format(iter.getTime());
+            final String iterStr = Utilities.isoDate().format(iter.getTime());
             final float strPix = (w - 1) - (w - 1) * (1f * rightSideCal.getTimeInMillis() - iter.getTimeInMillis()) / timeSpread;
             g.drawString(iterStr, strPix, h - 1);
             iter.add(Calendar.MONTH, 1);
@@ -479,6 +476,10 @@ public final class Test {
     return results;
   }
   
+  /**
+   * @param d date to format
+   * @return int of date in format yyyyMMdd
+   */
   static final int stringedInt(Date d) {
     SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
     int stringed = Integer.valueOf(sdf.format(d)).intValue();
@@ -496,25 +497,21 @@ public final class Test {
     
     BufferedImage streetsImg = OSM.stitchData(bbox);
     
-    int minStringedDate = Integer.MAX_VALUE;
-    int maxStringedDate = -Integer.MAX_VALUE;
+    long minTime = Long.MAX_VALUE;
+    long maxTime = Long.MIN_VALUE;
     
     for (Incident i : incidents) {
-      int stringedInt = stringedInt(i.getReportDateAsDate());
-      minStringedDate = Math.min(minStringedDate, stringedInt);
-      maxStringedDate = Math.max(maxStringedDate, stringedInt);
+      long time = i.getReportDateAsDate().getTime();
+      minTime = Math.min(minTime, time);
+      maxTime = Math.max(maxTime, time);
     }
     
     Calendar fromCal = Calendar.getInstance();
     Calendar toCal = Calendar.getInstance();
-    fromCal.setTime(Utilities.yyyyMMdd().parse(minStringedDate + ""));
+    fromCal.setTime(new Date(minTime));
     
-    // toCal.setTime(sdf2.parse(minStringedDate+""));
-    // toCal.add(Calendar.DAY_OF_YEAR, +90);
-    toCal.setTime(Utilities.yyyyMMdd().parse(maxStringedDate + ""));
+    toCal.setTime(new Date(maxTime));
     toCal.add(Calendar.DAY_OF_YEAR, -30);
-    
-    SimpleDateFormat toyyyyMMdd = new SimpleDateFormat("yyyyMMdd");
     
     List<Date> days = new LinkedList<>();
     for (Calendar day = getCalendar(fromCal.getTime()); day.before(toCal); day.add(Calendar.DAY_OF_YEAR, 1)) {
@@ -532,7 +529,7 @@ public final class Test {
         // break;
       }
       // println("on " + day);
-      String imageName = "heatmap-" + name + "-" + toyyyyMMdd.format(day) + "-" + OSM.ZOOM_LEVEL;
+      String imageName = "heatmap-" + name + "-" + Utilities.isoDate().format(day) + "-" + OSM.ZOOM_LEVEL;
       
       final long dayTime = day.getTime();
       Collection<Incident> incidentsGroup = new LinkedList<>();
@@ -559,7 +556,7 @@ public final class Test {
         // break;
       }
       // println("on " + day);
-      String imageName = "heatmap-" + name + "-" + toyyyyMMdd.format(day) + "-" + OSM.ZOOM_LEVEL;
+      String imageName = "heatmap-" + name + "-" + Utilities.isoDate().format(day) + "-" + OSM.ZOOM_LEVEL;
       
       final long dayTime = day.getTime();
       Collection<Incident> incidentsGroup = new LinkedList<>();
@@ -587,47 +584,6 @@ public final class Test {
     } catch (Exception e) {
       e.printStackTrace();
     }
-  }
-  
-  @Deprecated
-  static final Vector<Incident> getAllIncidentsFromXMLFiles() throws Exception {
-    Vector<Incident> incidents = new Vector<>();
-    
-    final File dir = new File("out");
-    final File totalFile = new File(dir, "total.txt");
-    Properties props = new Properties();
-    try (FileReader fr = new FileReader(totalFile)) {
-      props.load(fr);
-    }
-    
-    int x = 0;
-    while (true) {
-      if (!props.containsKey("id_" + x)) {
-        break;
-      }
-      
-      incidents.add(
-        new Incident(
-          props.getProperty("id_" + x),
-          props.getProperty("npu_" + x),
-          props.getProperty("beat_" + x),
-          props.getProperty("marker_" + x),
-          props.getProperty("neighborhood_" + x),
-          props.getProperty("number_" + x),
-          Double.parseDouble(props.getProperty("longitude_" + x)),
-          Double.parseDouble(props.getProperty("latitude_" + x)),
-          props.getProperty("type_" + x),
-          props.getProperty("shift_" + x),
-          props.getProperty("location_" + x),
-          props.getProperty("reportDate_" + x),
-          Utilities.MM_dd_yyyy().parse(props.getProperty("reportDate_" + x)).getTime()
-        )
-      );
-      
-      x++;
-    }
-    
-    return incidents;
   }
   
   @SuppressWarnings("unused")

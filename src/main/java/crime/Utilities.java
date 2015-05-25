@@ -12,12 +12,9 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 
 public final class Utilities {
   
-  public static SimpleDateFormat yyyyMMdd() {
-    return new SimpleDateFormat("yyyyMMdd");
-  }
-  
-  public static SimpleDateFormat MM_dd_yyyy() {
-    return new SimpleDateFormat("MM/dd/yyyy");
+  /** yyyy-MM-dd */
+  public static SimpleDateFormat isoDate() {
+    return new SimpleDateFormat("yyyy-MM-dd");
   }
   
   public static final void println(final Object o) {
