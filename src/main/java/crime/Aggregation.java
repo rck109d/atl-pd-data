@@ -6,6 +6,8 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
@@ -61,55 +63,35 @@ public class Aggregation {
   }
   
   static final void updateThroughYesterday() throws Exception {
-    Date mostRecentCapture = getMostRecentCapturedDate();
-    Calendar yesterday = Calendar.getInstance();
-    yesterday.add(Calendar.DAY_OF_YEAR, -1);
-    
-    Calendar loop = Calendar.getInstance();
-    loop.setTime(mostRecentCapture);
-    loop.add(Calendar.DAY_OF_YEAR, 1);
+    LocalDate mostRecentCapture = MongoData.getMostRecentIncidentLocalDate();
+    LocalDate yesterday = LocalDate.now().minusDays(1);
+    LocalDate iter = mostRecentCapture.plusDays(1);
     int daysAdded = 0;
-    while (loop.before(yesterday)) {
-      Utilities.println(loop.getTime());
-      if (!getAllZonesForDay(loop)) {
+    while (iter.isBefore(yesterday)) {
+      Utilities.println(iter);
+      if (!getAllZonesForDay(iter)) {
         break;
       }
       daysAdded++;
-      loop.add(Calendar.DAY_OF_YEAR, 1);
+      iter = iter.plusDays(1);
     }
     Utilities.println("days added: " + daysAdded);
-  }
-  
-  static final Date getMostRecentCapturedDate() {
-    Calendar maxCal = null;
-    for (final Date incidentDate : MongoData.getAllIncidentDates()) {
-      if (incidentDate == null) {
-        continue;
-      }
-      if (maxCal == null) {
-        maxCal = Calendar.getInstance();
-        maxCal.setTime(incidentDate);
-      } else if (maxCal.getTime().before(incidentDate)) {
-        maxCal.setTime(incidentDate);
-      }
-    }
-    return maxCal == null ? null : maxCal.getTime();
   }
   
   /**
    * Save incidents for a given day, returns if any data was added by this call.
    */
-  static final boolean getAllZonesForDay(final Calendar cal) throws Exception {
+  static final boolean getAllZonesForDay(final LocalDate localDate) throws Exception {
     JSONObject[] stats = new JSONObject[7];
     
     for (int zoneID = 1; zoneID <= 6; zoneID++) {
-      stats[zoneID] = getStats(zoneID + "", cal);
+      stats[zoneID] = getStats(zoneID + "", localDate);
     }
     
     for (int zoneID = 1; zoneID <= 6; zoneID++) {
       JSONArray incidents = stats[zoneID].getJSONArray("incidents");
       if (incidents.length() == 0) {
-        Utilities.println("halting getAllZonesForDay on " + cal.getTime() + " because zone " + zoneID + " is empty");
+        Utilities.println("halting getAllZonesForDay on " + localDate + " because zone " + zoneID + " is empty");
         return false;
       }
     }
@@ -123,10 +105,10 @@ public class Aggregation {
   }
   
   static final void getAllZonesDailyForYear(final int year) throws Exception {
-    final Calendar cal = new GregorianCalendar(year, 00, 01);
-    while (cal.get(Calendar.YEAR) == year) {
-      getAllZonesForDay(cal);
-      cal.add(Calendar.DAY_OF_YEAR, 1);
+    LocalDate localDate = LocalDate.of(year, 1, 1);
+    while (localDate.getYear() == year) {
+      getAllZonesForDay(localDate);
+      localDate = localDate.plusDays(1);
     }
   }
   
@@ -134,22 +116,24 @@ public class Aggregation {
     return "out/incidents/zone" + zoneID + ",year" + cal.get(Calendar.YEAR) + ",day" + cal.get(Calendar.DAY_OF_YEAR) + ".xml";
   }
   
-  static final JSONObject getStats(final String zoneID, final Calendar cal) throws Exception {
+  static final JSONObject getStats(final String zoneID, final LocalDate localDate) throws Exception {
+    // TODO remove mdy
     final SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
-    final String responseString = getQueryResponse(zoneID, "1,2,3,4,5,6,7,8,9", sdf.format(cal.getTime()), sdf.format(cal.getTime()));
+    final String responseString = getQueryResponse(zoneID, "1,2,3,4,5,6,7,8,9", localDate, localDate);
     final JSONObject responseJSON = new JSONObject(responseString);
     final JSONObject stats = new JSONObject(responseJSON.getString("d"));
     return stats;
   }
   
-  public static final String getQueryResponse(final String zoneID, final String offenseCodes, final String startDate, final String endDate) throws Exception {
+  public static final String getQueryResponse(final String zoneID, final String offenseCodes, final LocalDate startDate, final LocalDate endDate) throws Exception {
     final JSONObject jobj = new JSONObject();
     jobj.put("zoneID", zoneID);
     jobj.put("offenseCodes", offenseCodes);
-    jobj.put("startDate", startDate);
-    jobj.put("endDate", endDate);
+    DateTimeFormatter slashyMdy = Utilities.slashyMdy();
+    jobj.put("startDate", startDate.format(slashyMdy));
+    jobj.put("endDate", endDate.format(slashyMdy));
     
-    // final HttpPost httppost = new HttpPost("http://atlantapd.org/Service.aspx/GetMapData");
+    // http://atlantapd.org/Service.aspx/GetMapData
     final HttpPost httppost = new HttpPost("http://65.82.136.65:80/Service.aspx/GetMapData");
     final StringEntity se = new StringEntity(jobj.toString());
     se.setContentType(new BasicHeader(HTTP.CONTENT_TYPE, "application/json"));
@@ -193,57 +177,6 @@ public class Aggregation {
     return incidents;
   }
   
-  @Deprecated
-  static final Set<Incident> combineAllIncidents() throws Exception {
-    Set<Incident> incidents = new HashSet<>();
-    long total = 0;
-    final File dir = new File("out/incidents");
-    final File totalFile = new File(dir, "total.txt");
-    try (PrintWriter pr = new PrintWriter(totalFile)) {
-      long count = 0;
-      for (final File file : dir.listFiles()) {
-        if (file.getName().endsWith(".xml")) {
-          try {
-            final Set<Incident> incidentsFromFile = getIncidentsForFile(file.getPath());
-            for (final Incident incident : incidentsFromFile) {
-              pr.println("id_" + count + "=" + incident.id);
-              pr.println("npu_" + count + "=" + incident.npu);
-              pr.println("beat_" + count + "=" + incident.beat);
-              pr.println("marker_" + count + "=" + incident.marker);
-              pr.println("neighborhood_" + count + "=" + incident.neighborhood);
-              pr.println("number_" + count + "=" + incident.number);
-              pr.println("longitude_" + count + "=" + Double.toString(incident.getLongitude()));
-              pr.println("latitude_" + count + "=" + Double.toString(incident.getLatitude()));
-              pr.println("type_" + count + "=" + incident.type);
-              pr.println("shift_" + count + "=" + incident.shift);
-              if (incident.location.contains("\\n")) {
-                // do nothing
-              }
-              pr.println("location_" + count + "=" + incident.location.replaceAll("\\n\\s*", " "));
-              pr.println("reportDate_" + count + "=" + incident.reportDate);
-              
-              count++;
-            }
-            total += incidentsFromFile.size();
-          } catch (final Exception e) {
-            // do nothing
-          }
-        }
-      }
-    }
-    Utilities.println(Long.valueOf(total));
-    return incidents;
-  }
-  
-  @Deprecated
-  static final Set<Incident> getIncedentsOfDay(Calendar cal) throws Exception {
-    Set<Incident> incidents = new HashSet<>();
-    for (int zoneID = 1; zoneID <= 6; zoneID++) {
-      incidents.addAll(getIncidentsForZoneAndDate(zoneID, cal));
-    }
-    return incidents;
-  }
-  
   static final void saveIncidentsToKML(Collection<Incident> incidents, String filePath, String documentName) throws Exception {
     File file = new File(filePath);
     try (PrintWriter pr = new PrintWriter(file)) {
@@ -272,24 +205,18 @@ public class Aggregation {
     }
   }
   
-  static final void filterCrimes2KML(Pattern patternType, String name) throws Exception {
-    Collection<Incident> incidents = getAllIncidents(patternType);
-    saveIncidentsToKML(incidents, "out/crimesFilter-" + name + ".kml", "Incidents " + name + " (" + incidents.size() + ")");
-  }
-  
   static void dailyCrimesByCategory() throws Exception {
-    Collection<Incident> incidents = getAllIncidents(null);
-    Map<String, Map<Date, Vector<Incident>>> catDateMap = new HashMap<>();
+    Map<String, Map<LocalDate, Vector<Incident>>> catDateMap = new HashMap<>();
     
-    Date firstDate = null;
-    Date lastDate = null;
-    for (Incident incident : incidents) {
-      Date date = incident.getReportDateAsDate();
-      if (firstDate == null || firstDate.after(date)) {
-        firstDate = date;
+    LocalDate firstDate = null;
+    LocalDate lastDate = null;
+    for (Incident incident : MongoData.getAllIncidents()) {
+      LocalDate localDate = incident.getReportDateAsLocalDate();
+      if (firstDate == null || firstDate.isAfter(localDate)) {
+        firstDate = localDate;
       }
-      if (lastDate == null || firstDate.before(date)) {
-        lastDate = date;
+      if (lastDate == null || firstDate.isBefore(localDate)) {
+        lastDate = localDate;
       }
       String cat = Incident.marker2category.get(incident.marker);
       if (cat == null) {
@@ -297,36 +224,33 @@ public class Aggregation {
       }
       
       if (!catDateMap.containsKey(cat)) {
-        catDateMap.put(cat, new TreeMap<Date, Vector<Incident>>());
+        catDateMap.put(cat, new TreeMap<LocalDate, Vector<Incident>>());
       }
-      final Map<Date, Vector<Incident>> dateMap = catDateMap.get(cat);
+      final Map<LocalDate, Vector<Incident>> dateMap = catDateMap.get(cat);
       
-      if (!dateMap.containsKey(date)) {
-        dateMap.put(date, new Vector<Incident>());
+      if (!dateMap.containsKey(localDate)) {
+        dateMap.put(localDate, new Vector<Incident>());
       }
-      final Vector<Incident> catDayIncidents = dateMap.get(date);
+      final Vector<Incident> catDayIncidents = dateMap.get(localDate);
       
       catDayIncidents.add(incident);
     }
     
-    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
     for (String cat : Incident.marker2category.values()) {
       File file = new File("out/crimeDaysCat-" + cat + ".txt");
       try (PrintWriter pr = new PrintWriter(file)) {
         if (catDateMap.containsKey(cat)) {
-          Map<Date, Vector<Incident>> datedIncidents = catDateMap.get(cat);
-          Calendar iter = Calendar.getInstance();
-          iter.setTime(firstDate);
-          Calendar lastCal = Calendar.getInstance();
-          lastCal.setTime(lastDate);
-          while (!iter.after(lastCal)) {
-            pr.print(sdf.format(iter.getTime()) + " ");
-            if (datedIncidents.containsKey(iter.getTime())) {
-              pr.println(datedIncidents.get(iter.getTime()).size());
+          Map<LocalDate, Vector<Incident>> datedIncidents = catDateMap.get(cat);
+          LocalDate iter = firstDate;
+          LocalDate lastCal = lastDate;
+          while (!iter.isAfter(lastCal)) {
+            pr.print(iter);
+            if (datedIncidents.containsKey(iter)) {
+              pr.println(datedIncidents.get(iter).size());
             } else {
               pr.println("0");
             }
-            iter.add(Calendar.DAY_OF_YEAR, 1);
+            iter = iter.plusDays(1);
           }
         }
       }
@@ -334,17 +258,16 @@ public class Aggregation {
   }
   
   static void dailyCrimesByCategory2() throws Exception {
-    Collection<Incident> incidents = getAllIncidents(null);
-    Map<String, Map<Date, Collection<Incident>>> catDateMap = new HashMap<>();
+    Map<String, Map<LocalDate, Collection<Incident>>> catDateMap = new HashMap<>();
     
-    Date firstDate = null;
-    Date lastDate = null;
-    for (Incident incident : incidents) {
-      Date date = incident.getReportDateAsDate();
-      if (firstDate == null || date.before(firstDate)) {
+    LocalDate firstDate = null;
+    LocalDate lastDate = null;
+    for (Incident incident : MongoData.getAllIncidents()) {
+      LocalDate date = incident.getReportDateAsLocalDate();
+      if (firstDate == null || date.isBefore(firstDate)) {
         firstDate = date;
       }
-      if (lastDate == null || date.after(lastDate)) {
+      if (lastDate == null || date.isAfter(lastDate)) {
         lastDate = date;
       }
       String cat = Incident.marker2category.get(incident.marker);
@@ -353,15 +276,14 @@ public class Aggregation {
       }
       
       if (!catDateMap.containsKey(cat)) {
-        catDateMap.put(cat, new TreeMap<Date, Collection<Incident>>());
+        catDateMap.put(cat, new TreeMap<LocalDate, Collection<Incident>>());
       }
-      final Map<Date, Collection<Incident>> dateMap = catDateMap.get(cat);
+      final Map<LocalDate, Collection<Incident>> dateMap = catDateMap.get(cat);
       
       if (!dateMap.containsKey(date)) {
         dateMap.put(date, new LinkedList<Incident>());
       }
       final Collection<Incident> catDayIncidents = dateMap.get(date);
-      
       catDayIncidents.add(incident);
     }
     
@@ -373,21 +295,16 @@ public class Aggregation {
       }
       pr.println();
       
-      SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-      Calendar iter = Calendar.getInstance();
-      iter.setTime(firstDate);
-      Calendar lastCal = Calendar.getInstance();
-      lastCal.setTime(lastDate);
-      while (!iter.after(lastCal)) {
-        Date time = iter.getTime();
-        pr.print(sdf.format(time));
+      LocalDate iter = firstDate;
+      while (!iter.isAfter(lastDate)) {
+        pr.print(iter);
         for (String cat : Incident.marker2category.values()) {
-          Collection<Incident> incidentsOnDate = catDateMap.get(cat).get(time);
+          Collection<Incident> incidentsOnDate = catDateMap.get(cat).get(iter);
           int num = incidentsOnDate != null ? incidentsOnDate.size() : 0;
           pr.print("\t" + num);
         }
         pr.println();
-        iter.add(Calendar.DAY_OF_YEAR, 1);
+        iter = iter.plusDays(1);
       }
     }
   }
@@ -401,6 +318,10 @@ public class Aggregation {
     }
   }
   
+  /**
+   * @deprecated replaced by {@link MongoData#searchIncidentsByType(String)}
+   */
+  @Deprecated
   public static final Collection<Incident> getAllIncidents(Pattern typePattern) throws Exception {
     Collection<Incident> incidents = new LinkedList<>();
     final File dir = new File("out" + File.separator + "incidents");
@@ -512,8 +433,6 @@ public class Aggregation {
   }
   
   static final void crimes2kmlByNPU() throws Exception {
-    Collection<Incident> incidents = getAllIncidents(null);
-    
     for (char npu = 'A'; npu <= 'Z'; npu++) {
       if (npu == 'U') {
         npu++;
@@ -527,7 +446,7 @@ public class Aggregation {
           pr.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
           pr.println("<kml xmlns=\"http://www.opengis.net/kml/2.2\">");
           pr.println("  <Document>");
-          for (Incident incident : incidents) {
+          for (Incident incident : MongoData.getAllIncidents()) {
             if (incident.npu.equalsIgnoreCase(npuString)) {
               if (incident.reportDate.endsWith(yearString)) {
                 pr.println("    <Placemark>");

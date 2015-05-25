@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.net.UnknownHostException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
@@ -106,37 +107,15 @@ public class MongoData {
     return incidents;
   }
   
-  public static final Iterable<Date> getAllIncidentDates() {
-    return new Iterable<Date>() {
-      @Override
-      public Iterator<Date> iterator() {
-        return new Iterator<Date>() {
-          final private Iterator<?> datesIter = incidentsCollection.distinct("reportDate").iterator();
-          
-          @Override
-          public boolean hasNext() {
-            return this.datesIter.hasNext();
-          }
-          
-          @Override
-          public Date next() {
-            Date date = null;
-            try {
-              date = Utilities.isoDate().parse(this.datesIter.next().toString());
-            } catch (final Exception e) {
-              // do nothing
-            }
-            return date;
-          }
-          
-          @Override
-          public void remove() {
-            throw new UnsupportedOperationException();
-          }
-        };
-      }
-      
-    };
+  public static final LocalDate getMostRecentIncidentLocalDate() {
+    DBObject query = new BasicDBObject();
+    DBObject fields = new BasicDBObject("_id", Boolean.FALSE).append("reportDate", Boolean.TRUE);
+    DBObject orderBy = new BasicDBObject("reportDate", Integer.valueOf(-1));
+    DBObject one = incidentsCollection.findOne(query, fields, orderBy);
+    if(one == null) {
+      return null;
+    }
+    return LocalDate.parse(one.get("reportDate").toString());
   }
   
   public static Collection<Incident> getIncidentsWithinBox(final BoundingBox bbox) {
@@ -249,6 +228,7 @@ public class MongoData {
   @SuppressWarnings("boxing")
   public static void extractAndSaveIncidentReportDateTime() {
     System.out.println("main()");
+    // TODO remove mdy format
     SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
     try(final DBCursor all = incidentsCollection.find()) {
       while (all.hasNext()) {

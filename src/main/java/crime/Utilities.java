@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.text.SimpleDateFormat;
+import java.time.format.DateTimeFormatter;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -15,6 +16,10 @@ public final class Utilities {
   /** yyyy-MM-dd */
   public static SimpleDateFormat isoDate() {
     return new SimpleDateFormat("yyyy-MM-dd");
+  }
+  
+  public static DateTimeFormatter slashyMdy() {
+    return DateTimeFormatter.ofPattern("MM/dd/yyyy");
   }
   
   public static final void println(final Object o) {

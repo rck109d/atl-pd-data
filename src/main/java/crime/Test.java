@@ -13,6 +13,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
@@ -36,17 +38,17 @@ public final class Test {
     public final boolean      calculateGrey;
     public final boolean      calculateColor;
     public final int          maxPixValue;
-    public final long          refTime;
-    public final long          timeSpread;
+    public final LocalDate    refLocalDate;
+    public final long         spreadDays;
     
-    public PlotSettings(BoundingBox bbox, boolean calculateGrey, boolean calculateColor, int maxPixValue, long refTime, long timeSpread) {
+    public PlotSettings(BoundingBox bbox, boolean calculateGrey, boolean calculateColor, int maxPixValue, LocalDate refLocalDate, long daysSpread) {
       super();
       this.bbox = bbox;
       this.calculateGrey = calculateGrey;
       this.calculateColor = calculateColor;
       this.maxPixValue = maxPixValue;
-      this.refTime = refTime;
-      this.timeSpread = timeSpread;
+      this.refLocalDate = refLocalDate;
+      this.spreadDays = daysSpread;
     }
   }
   
@@ -59,17 +61,16 @@ public final class Test {
   
   public static final void main(final String[] args) throws Exception {
     long start = System.currentTimeMillis();
-    
     for (int i = 0; i < 1; i++) {
       Explorer.launchExplorer();
     }
     
-    // println(MongoData.searchIncidentsByType("autotheft").size());
-    // DrawHeatMaps(MongoData.searchIncidentsByType("autotheft"),, "autotheft");
-    // dailyCrimesByCategory2(30);
+    //System.out.println(MongoData.searchIncidentsByType("autotheft").size());
+    //DrawHeatMaps(MongoData.searchIncidentsByType("autotheft"), "autotheft");
+    //Aggregation.dailyCrimesByCategory2();
     // DrawHeatMap(MongoData.searchIncidentsByType("autotheft"), "autotheft");
-    // filterCrimes2KML("homicide");
-    // getAllZonesDailyForYear(2010);
+    //filterCrimes2KML("homicide");
+    //Aggregation.getAllZonesDailyForYear(2010);
     
     long end = System.currentTimeMillis();
     Utilities.println((end - start) / 1000 + " seconds");
@@ -77,16 +78,16 @@ public final class Test {
   
   @SuppressWarnings("boxing")
   static void dailyCrimesByCategory(final int movingAverageRadius, Iterable<Incident> incidents) throws Exception {
-    final Map<String, Map<Date, Collection<Incident>>> catDateMap = new HashMap<>();
+    final Map<String, Map<LocalDate, Collection<Incident>>> catDateMap = new HashMap<>();
     
-    Date firstDate = null;
-    Date lastDate = null;
+    LocalDate firstDate = null;
+    LocalDate lastDate = null;
     for (final Incident incident : incidents) {
-      final Date date = incident.getReportDateAsDate();
-      if (firstDate == null || date.before(firstDate)) {
+      final LocalDate date = incident.getReportDateAsLocalDate();
+      if (firstDate == null || date.isBefore(firstDate)) {
         firstDate = date;
       }
-      if (lastDate == null || date.after(lastDate)) {
+      if (lastDate == null || date.isAfter(lastDate)) {
         lastDate = date;
       }
       final String cat = Incident.marker2category.get(incident.marker);
@@ -94,9 +95,9 @@ public final class Test {
         throw new RuntimeException("Unknown category marker: '" + incident.marker + "'");
       }
       if (!catDateMap.containsKey(cat)) {
-        catDateMap.put(cat, new TreeMap<Date, Collection<Incident>>());
+        catDateMap.put(cat, new TreeMap<LocalDate, Collection<Incident>>());
       }
-      final Map<Date, Collection<Incident>> dateMap = catDateMap.get(cat);
+      final Map<LocalDate, Collection<Incident>> dateMap = catDateMap.get(cat);
       if (!dateMap.containsKey(date)) {
         dateMap.put(date, new LinkedList<Incident>());
       }
@@ -104,13 +105,13 @@ public final class Test {
       catDayIncidents.add(incident);
     }
     
-    final Map<String, Map<Date, Double>> cateDateMA = new HashMap<>();
-    for (final Map.Entry<String, Map<Date, Collection<Incident>>> catDateEntry : catDateMap.entrySet()) {
-      final Map<Date, Double> movingAverageForCat = new HashMap<>();
-      for (final Date date1 : dateIterator(firstDate, lastDate)) {
+    final Map<String, Map<LocalDate, Double>> cateDateMA = new HashMap<>();
+    for (final Map.Entry<String, Map<LocalDate, Collection<Incident>>> catDateEntry : catDateMap.entrySet()) {
+      final Map<LocalDate, Double> movingAverageForCat = new HashMap<>();
+      for (final LocalDate date1 : localDateIterator(firstDate, lastDate)) {
         double sum = 0;
-        for (final Date date2 : dateIterator(firstDate, lastDate)) {
-          double percentOff = Math.abs(1.0d * date1.getTime() - date2.getTime()) / (1000L * 60 * 60 * 24 * movingAverageRadius);
+        for (final LocalDate date2 : localDateIterator(firstDate, lastDate)) {
+          double percentOff = Math.abs(date1.until(date2, ChronoUnit.DAYS)) / (1L * movingAverageRadius);
           final Collection<Incident> entry = catDateEntry.getValue().get(date2);
           final long size = entry == null ? 0 : entry.size();
           sum += size * (0.5 / Math.PI) * Math.exp(-Math.pow(percentOff, 2) / 2);
@@ -129,51 +130,43 @@ public final class Test {
       }
       pr.println();
       
-      final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-      final Calendar iter = Calendar.getInstance();
-      iter.setTime(firstDate);
-      final Calendar lastCal = Calendar.getInstance();
-      lastCal.setTime(lastDate);
-      while (!iter.after(lastCal)) {
-        final Date time = iter.getTime();
-        pr.print(sdf.format(time));
+      LocalDate iter = firstDate;
+      while (!iter.isAfter(lastDate)) {
+        pr.print(iter);
         for (final String cat : Incident.marker2category.values()) {
-          final Double val = cateDateMA.get(cat) == null ? 0 : cateDateMA.get(cat).get(time);
+          final Double val = cateDateMA.get(cat) == null ? 0 : cateDateMA.get(cat).get(iter);
           double num = val == null ? 0 : val;
           pr.print("\t" + num);
         }
         pr.println();
-        iter.add(Calendar.DAY_OF_YEAR, 1);
+        iter = iter.plusDays(1);
       }
       System.out.println("saved to " + file.getCanonicalPath());
     }
   }
   
-  static final Iterable<Date> dateIterator(final Date from, final Date to) {
-    return new Iterable<Date>() {
+  static final Iterable<LocalDate> localDateIterator(final LocalDate from, final LocalDate to) {
+    return new Iterable<LocalDate>() {
       @Override
-      public Iterator<Date> iterator() {
-        return new Iterator<Date>() {
-          final Calendar curr = Calendar.getInstance();
-          {
-            this.curr.setTime(from);
-          }
+      public Iterator<LocalDate> iterator() {
+        return new Iterator<LocalDate>() {
+          private LocalDate curr = from;
           @Override
           public void remove() {
             throw new UnsupportedOperationException();
           }
           @Override
-          public Date next() {
-            if(this.curr.getTime().after(to)) {
+          public LocalDate next() {
+            if(this.curr.isAfter(to)) {
               throw new java.lang.IndexOutOfBoundsException();
             }
-            final Date toReturn = this.curr.getTime();
-            this.curr.add(Calendar.DAY_OF_WEEK, 1);
+            final LocalDate toReturn = this.curr;
+            this.curr = this.curr.plusDays(1);
             return toReturn;
           }
           @Override
           public boolean hasNext() {
-            return !this.curr.getTime().after(to);
+            return !this.curr.isAfter(to);
           }
         };
       }
@@ -272,9 +265,9 @@ public final class Test {
           double y = IMG_HEIGHT - IMG_HEIGHT * (latitude - bbox.south) / ySpread;
           
           final double radius;
-          if (settings.refTime != 0 && settings.timeSpread != 0) {
-            final long thisSpread = incident.getReportDateAsDate().getTime() - settings.refTime;
-            radius = (25d * thisSpread / settings.timeSpread);
+          if (settings.refLocalDate != null && settings.spreadDays != 0) {
+            final long daysBetween = settings.refLocalDate.until(incident.getReportDateAsLocalDate(), ChronoUnit.DAYS);
+            radius = (25d * daysBetween / settings.spreadDays);
           } else {
             radius = 25;
           }
@@ -446,33 +439,24 @@ public final class Test {
         final int w = color.getWidth();
         final int h = color.getHeight();
         
-        final long refTime = settings.refTime;
-        final long timeSpread = settings.timeSpread;
-        if (refTime > 0 && timeSpread > 0) {
-          Date refDate = new Date(refTime);
-          final Calendar earlyCal = Calendar.getInstance();
-          earlyCal.setTime(refDate);
-          earlyCal.set(Calendar.DAY_OF_MONTH, 1);
-          earlyCal.add(Calendar.MONTH, -1);
-          final Calendar rightSideCal = Calendar.getInstance();
-          rightSideCal.setTime(refDate);
-          rightSideCal.add(Calendar.HOUR, (int)(timeSpread / 1000 / 60 / 60));
-          
-          Calendar iter = Calendar.getInstance();
-          iter.setTime(earlyCal.getTime());
+        final LocalDate refLocalDate = settings.refLocalDate;
+        final long spreadDays = settings.spreadDays;
+        if (refLocalDate != null && spreadDays > 0) {
+          final LocalDate earliest = refLocalDate.withDayOfMonth(1).minusMonths(1);
+          final LocalDate latest = refLocalDate.plusDays(spreadDays);
+          LocalDate iter = earliest;
           g.setColor(Color.white);
-          while (!iter.after(rightSideCal)) {
-            final String iterStr = Utilities.isoDate().format(iter.getTime());
-            final float strPix = (w - 1) - (w - 1) * (1f * rightSideCal.getTimeInMillis() - iter.getTimeInMillis()) / timeSpread;
+          while (!iter.isAfter(latest)) {
+            final String iterStr = iter.toString();
+            final float strPix = (w - 1) - (w - 1) * (1f * iter.until(latest, ChronoUnit.DAYS)) / spreadDays;
             g.drawString(iterStr, strPix, h - 1);
-            iter.add(Calendar.MONTH, 1);
+            iter = iter.plusMonths(1);
           }
         }
       }
       sp = null;
       ImageIO.write(color, "png", colorFile);
     }
-    
     return results;
   }
   
@@ -497,51 +481,35 @@ public final class Test {
     
     BufferedImage streetsImg = OSM.stitchData(bbox);
     
-    long minTime = Long.MAX_VALUE;
-    long maxTime = Long.MIN_VALUE;
+    LocalDate min = null;
+    LocalDate max = null;
     
     for (Incident i : incidents) {
-      long time = i.getReportDateAsDate().getTime();
-      minTime = Math.min(minTime, time);
-      maxTime = Math.max(maxTime, time);
-    }
-    
-    Calendar fromCal = Calendar.getInstance();
-    Calendar toCal = Calendar.getInstance();
-    fromCal.setTime(new Date(minTime));
-    
-    toCal.setTime(new Date(maxTime));
-    toCal.add(Calendar.DAY_OF_YEAR, -30);
-    
-    List<Date> days = new LinkedList<>();
-    for (Calendar day = getCalendar(fromCal.getTime()); day.before(toCal); day.add(Calendar.DAY_OF_YEAR, 1)) {
-      days.add(day.getTime());
+      LocalDate localDate = i.getReportDateAsLocalDate();
+      if(min == null || min.isAfter(localDate)) {
+        min = localDate;
+      }
+      if(max == null || max.isBefore(localDate)) {
+        max = localDate;
+      }
     }
     
     // run one, greys
-    final long timeSpread = 1000L * 60 * 60 * 24 * 30 * 3;
+    final long spreadDays = 90;
     int maxPixVal = 0;
-    int loopLimit = 100;
-    int count = 0;
-    for (Date day : days) {
-      count++;
-      if (count > loopLimit) {
-        // break;
-      }
-      // println("on " + day);
-      String imageName = "heatmap-" + name + "-" + Utilities.isoDate().format(day) + "-" + OSM.ZOOM_LEVEL;
+    for (LocalDate day : localDateIterator(min, max.minusDays(30))) {
+      String imageName = "heatmap-" + name + "-" + day + "-" + OSM.ZOOM_LEVEL;
       
-      final long dayTime = day.getTime();
       Collection<Incident> incidentsGroup = new LinkedList<>();
       for (Incident i : incidents) {
-        long iMinusDay = i.getReportDateAsDate().getTime() - dayTime;
-        if (iMinusDay >= 0 && iMinusDay <= timeSpread) {
+        long monthsBetween = day.until(i.getReportDateAsLocalDate(), ChronoUnit.MONTHS);
+        if (monthsBetween >= 0 && monthsBetween <= spreadDays) {
           incidentsGroup.add(i);
         }
       }
       
       try {
-        PlotResults results = plotIncidents(streetsImg, incidentsGroup, imageName, new PlotSettings(bbox, true, false, 0, dayTime, timeSpread));
+        PlotResults results = plotIncidents(streetsImg, incidentsGroup, imageName, new PlotSettings(bbox, true, false, 0, day, spreadDays));
         maxPixVal = Math.max(maxPixVal, results.maxPixValue);
       } catch (Exception e) {
         e.printStackTrace();
@@ -549,26 +517,19 @@ public final class Test {
     }
     
     // run two, exposure-matched colors
-    count = 0;
-    for (Date day : days) {
-      count++;
-      if (count > loopLimit) {
-        // break;
-      }
-      // println("on " + day);
-      String imageName = "heatmap-" + name + "-" + Utilities.isoDate().format(day) + "-" + OSM.ZOOM_LEVEL;
+    for (LocalDate day : localDateIterator(min, max.minusDays(30))) {
+      String imageName = "heatmap-" + name + "-" + day + "-" + OSM.ZOOM_LEVEL;
       
-      final long dayTime = day.getTime();
       Collection<Incident> incidentsGroup = new LinkedList<>();
       for (Incident i : incidents) {
-        long iMinusDay = i.getReportDateAsDate().getTime() - dayTime;
-        if (iMinusDay >= 0 && iMinusDay <= timeSpread) {
+        long monthsBetween = day.until(i.getReportDateAsLocalDate(), ChronoUnit.MONTHS);
+        if (monthsBetween >= 0 && monthsBetween <= spreadDays) {
           incidentsGroup.add(i);
         }
       }
       
       try {
-        plotIncidents(streetsImg, incidentsGroup, imageName, new PlotSettings(bbox, false, true, maxPixVal, dayTime, timeSpread));
+        plotIncidents(streetsImg, incidentsGroup, imageName, new PlotSettings(bbox, false, true, maxPixVal, day, spreadDays));
       } catch (Exception e) {
         e.printStackTrace();
       }
@@ -580,7 +541,7 @@ public final class Test {
     String imageName = "heatmap-" + name + "-" + OSM.ZOOM_LEVEL;
     try {
       BufferedImage streetsImg = OSM.stitchData(bbox);
-      plotIncidents(streetsImg, incidentsToPlot, imageName, new PlotSettings(bbox, true, true, 0, 0, 0));
+      plotIncidents(streetsImg, incidentsToPlot, imageName, new PlotSettings(bbox, true, true, 0, null, 0));
     } catch (Exception e) {
       e.printStackTrace();
     }

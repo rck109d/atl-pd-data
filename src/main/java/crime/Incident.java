@@ -1,10 +1,12 @@
 package crime;
 
 import java.text.ParseException;
+import java.time.LocalDate;
 import java.util.Collections;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -61,9 +63,12 @@ public final class Incident {
     final String type = getElementTextByTag(element, "type");
     final String shift = getElementTextByTag(element, "shift");
     final String location = getElementTextByTag(element, "loction");
-    final String reportDate = getElementTextByTag(element, "reportdate");
-    
-    return new Incident(id, npu, beat, marker, neighborhood, number, Double.parseDouble(longitude), Double.parseDouble(latitude), type, shift, location, reportDate, Utilities.isoDate().parse(reportDate).getTime());
+    String reportDate = getElementTextByTag(element, "reportdate");
+    if(reportDate.contains("/")) {
+      reportDate = LocalDate.from(Utilities.slashyMdy().parse(reportDate)).toString();
+    }
+    final long reportDateTime = Utilities.isoDate().parse(reportDate).getTime();
+    return new Incident(id, npu, beat, marker, neighborhood, number, Double.parseDouble(longitude), Double.parseDouble(latitude), type, shift, location, reportDate, reportDateTime);
   }
   
   public Incident(String id, String npu, String beat, String marker, String neighborhood, String number, double longitude, double latitude, String type, String shift, String location, String reportDate, long reportDateTime) {
@@ -131,8 +136,8 @@ public final class Incident {
     return this.reportDate;
   }
   
-  public final Date getReportDateAsDate() {
-    return new Date(this.reportDateTime);
+  public final LocalDate getReportDateAsLocalDate() {
+    return LocalDate.parse(this.reportDate);
   }
   
   @Override
