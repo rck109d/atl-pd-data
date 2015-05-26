@@ -21,7 +21,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -131,6 +130,9 @@ public final class Test {
       pr.println();
       
       LocalDate iter = firstDate;
+      if(iter == null) {
+        return;
+      }
       while (!iter.isAfter(lastDate)) {
         pr.print(iter);
         for (final String cat : Incident.marker2category.values()) {
@@ -492,6 +494,10 @@ public final class Test {
       if(max == null || max.isBefore(localDate)) {
         max = localDate;
       }
+    }
+    if(max == null) {
+      System.out.println("can't draw heatmaps, no incident days found");
+      return;
     }
     
     // run one, greys

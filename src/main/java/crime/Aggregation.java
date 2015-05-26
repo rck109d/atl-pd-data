@@ -5,13 +5,10 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileReader;
 import java.io.PrintWriter;
-import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 import java.util.Collection;
-import java.util.Date;
-import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -117,8 +114,6 @@ public class Aggregation {
   }
   
   static final JSONObject getStats(final String zoneID, final LocalDate localDate) throws Exception {
-    // TODO remove mdy
-    final SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
     final String responseString = getQueryResponse(zoneID, "1,2,3,4,5,6,7,8,9", localDate, localDate);
     final JSONObject responseJSON = new JSONObject(responseString);
     final JSONObject stats = new JSONObject(responseJSON.getString("d"));
@@ -294,8 +289,10 @@ public class Aggregation {
         pr.print(cat + "\t");
       }
       pr.println();
-      
       LocalDate iter = firstDate;
+      if(iter == null) {
+        return;
+      }
       while (!iter.isAfter(lastDate)) {
         pr.print(iter);
         for (String cat : Incident.marker2category.values()) {
