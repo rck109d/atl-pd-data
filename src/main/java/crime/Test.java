@@ -103,11 +103,18 @@ public final class Test {
       final Collection<Incident> catDayIncidents = dateMap.get(date);
       catDayIncidents.add(incident);
     }
+    if(firstDate == null || lastDate == null) {
+      System.out.println("dailyCrimesByCategory error, no incidents");
+      return;
+    }
+    
+    LocalDate windowFirstDate = firstDate.plusDays(movingAverageRadius);
+    LocalDate windowLastDate = lastDate.minusDays(movingAverageRadius);
     
     final Map<String, Map<LocalDate, Double>> cateDateMA = new HashMap<>();
     for (final Map.Entry<String, Map<LocalDate, Collection<Incident>>> catDateEntry : catDateMap.entrySet()) {
       final Map<LocalDate, Double> movingAverageForCat = new HashMap<>();
-      for (final LocalDate date1 : localDateIterator(firstDate, lastDate)) {
+      for (final LocalDate date1 : localDateIterator(windowFirstDate, windowLastDate)) {
         double sum = 0;
         for (final LocalDate date2 : localDateIterator(firstDate, lastDate)) {
           double percentOff = Math.abs(date1.until(date2, ChronoUnit.DAYS)) / (1L * movingAverageRadius);
@@ -128,12 +135,7 @@ public final class Test {
         pr.print(cat + "\t");
       }
       pr.println();
-      
-      LocalDate iter = firstDate;
-      if(iter == null) {
-        return;
-      }
-      while (!iter.isAfter(lastDate)) {
+      for (final LocalDate iter : localDateIterator(windowFirstDate, windowLastDate)) {
         pr.print(iter);
         for (final String cat : Incident.marker2category.values()) {
           final Double val = cateDateMA.get(cat) == null ? 0 : cateDateMA.get(cat).get(iter);
@@ -141,7 +143,6 @@ public final class Test {
           pr.print("\t" + num);
         }
         pr.println();
-        iter = iter.plusDays(1);
       }
       System.out.println("saved to " + file.getCanonicalPath());
     }
