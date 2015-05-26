@@ -18,12 +18,10 @@ import java.awt.event.WindowEvent;
 import java.awt.geom.Line2D;
 import java.awt.image.BufferedImage;
 import java.net.URL;
-import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.util.ArrayDeque;
-import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -347,9 +345,9 @@ public class Explorer extends JComponent {
     }
   }
   
-  public static Date                    dateFrom         = null;
+  public static LocalDate               localDateFrom    = null;
   
-  public static Date                    dateTo           = null;
+  public static LocalDate               localDateTo      = null;
   // static Collection<Incident> incidents = null;
   
   final static Map<String, String>      marker2category  = Collections.unmodifiableMap(new LinkedHashMap<String, String>() {
@@ -370,14 +368,11 @@ public class Explorer extends JComponent {
                                                          });
   
   private static final long             serialVersionUID = 1L;
-  private static final SimpleDateFormat yyyyMMdd         = new SimpleDateFormat("yyyyMMdd");
   
   static {
     { // init the date range
-      Calendar fromCal = Calendar.getInstance();
-      fromCal.add(Calendar.MONTH, -2);
-      dateFrom = fromCal.getTime();
-      dateTo = new Date();
+      localDateTo = LocalDate.now();
+      localDateFrom = localDateTo.minusMonths(2);
     }
   }
   
@@ -521,7 +516,7 @@ public class Explorer extends JComponent {
   }
   
   String getStatusText() {
-    return "Mode: " + this.mouseMode.getStatusName() + "  Date ( " + yyyyMMdd.format(Explorer.dateFrom) + " to " + yyyyMMdd.format(Explorer.dateTo) + " )  " + this.screenCenterLongitude + " , "
+    return "Mode: " + this.mouseMode.getStatusName() + "  Date ( " + Explorer.localDateFrom + " to " + Explorer.localDateTo + " )  " + this.screenCenterLongitude + " , "
         + this.screenCenterLatitude + " , " + this.screenZoom;
   }
   
@@ -689,7 +684,7 @@ public class Explorer extends JComponent {
       break;
     }
     case GRAPH: {
-      final Collection<Incident> incidents = MongoData.getIncidentsWithinPolyAndTime(Explorer.this.polyPoints.toArray(new double[][] {}), dateTo.getTime() - 1000L * 60 * 60 * 24 * 365 * 5, dateTo.getTime());
+      final Collection<Incident> incidents = MongoData.getIncidentsWithinPolyAndTime(Explorer.this.polyPoints.toArray(new double[][] {}), localDateTo.minusYears(5), localDateTo);
       System.out.println(incidents.size());
       try {
         Test.dailyCrimesByCategory(30, incidents);

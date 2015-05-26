@@ -420,8 +420,7 @@ public class Aggregation {
         if (typePattern == null || typePattern.matcher(type).matches()) {
           double lat = Double.parseDouble(latitude);
           double lng = Double.parseDouble(longitude);
-          final long reportDateTime = Utilities.isoDate().parse(reportDate).getTime();
-          incidents.add(new Incident(id, npu, beat, marker, neighborhood, number, lng, lat, type, shift, location, reportDate, reportDateTime));
+          incidents.add(new Incident(id, npu, beat, marker, neighborhood, number, lng, lat, type, shift, location, reportDate));
           hit++;
         }
       }

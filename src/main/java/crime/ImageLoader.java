@@ -9,6 +9,7 @@ import java.awt.image.ColorConvertOp;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -249,8 +250,8 @@ public class ImageLoader {
   }
   
   static void doCrimeLayerThreadWork() {
-    final long fromTime = Explorer.dateFrom.getTime();
-    final long toTime = Explorer.dateTo.getTime();
+    final LocalDate localDateFrom = Explorer.localDateFrom;
+    final LocalDate localDateTo = Explorer.localDateTo;
     final Collection<MapSegment> segs;
     synchronized (ImageLoader.segments) {
       segs = new HashSet<>(ImageLoader.segments.values());
@@ -270,7 +271,7 @@ public class ImageLoader {
             final boolean doDetail = seg.getTile().z > 16;
             final BoundingBox bbox = seg.getTile().boundingBox;
             
-            for (final Incident i : MongoData.getIncidentsWithinBoxAndTime(seg.getTile().boundingBox, fromTime, toTime)) {
+            for (final Incident i : MongoData.getIncidentsWithinBoxAndTime(seg.getTile().boundingBox, localDateFrom, localDateTo)) {
               final double latitude = i.getLatitude();
               final double longitude = i.getLongitude();
               final double percX = ((longitude - bbox.west) / (bbox.east - bbox.west));

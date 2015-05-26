@@ -4,8 +4,6 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.UnknownHostException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Date;
@@ -45,6 +43,8 @@ public class MongoData {
       mongoClient = new MongoClient("localhost", 27017);
       db = mongoClient.getDB("crime");
       incidentsCollection = db.getCollection("incidents");
+      incidentsCollection.createIndex(new BasicDBObject("reportDate", Boolean.TRUE));
+      incidentsCollection.createIndex(new BasicDBObject("longLat", "2d"));
       images = new GridFS(db, "images");
     } catch (final UnknownHostException e) {
       e.printStackTrace();
@@ -57,7 +57,6 @@ public class MongoData {
     }
   }
   
-  @SuppressWarnings("boxing")
   public static BasicDBObject incident2dbo(final Incident incident) {
     return new BasicDBObject()
       .append("id", Integer.valueOf(incident.id))
@@ -73,8 +72,7 @@ public class MongoData {
       .append("type", incident.type)
       .append("shift", incident.shift)
       .append("location", incident.location)
-      .append("reportDate", incident.reportDate)
-      .append("reportDateTime", incident.reportDateTime);
+      .append("reportDate", incident.reportDate);
   }
   
   public static Incident dbo2incident(final DBObject dbo) {
@@ -91,8 +89,7 @@ public class MongoData {
         dbo.get("type").toString(),
         dbo.get("shift").toString(),
         dbo.get("location").toString(),
-        dbo.get("reportDate").toString(),
-        ((Long)dbo.get("reportDateTime")).longValue()
+        dbo.get("reportDate").toString()
       );
     return incident;
   }
@@ -118,29 +115,7 @@ public class MongoData {
     return LocalDate.parse(one.get("reportDate").toString());
   }
   
-  public static Collection<Incident> getIncidentsWithinBox(final BoundingBox bbox) {
-    final Collection<Incident> incidents = new LinkedList<>();
-    @SuppressWarnings("boxing")
-    final BasicDBObject query = new BasicDBObject().append("longlat",
-      new BasicDBObject("$within",
-        new BasicDBObject("$box",
-          new Double[][] {
-            new Double[] { bbox.west, bbox.north },
-            new Double[] { bbox.east, bbox.south }
-          }
-        )
-      )
-    );
-    
-    try(final DBCursor cursor = incidentsCollection.find(query)) {
-      while (cursor.hasNext()) {
-        incidents.add(dbo2incident(cursor.next()));
-      }
-    }
-    return incidents;
-  }
-  
-  public static Collection<Incident> getIncidentsWithinBoxAndTime(final BoundingBox bbox, long from, long to) {
+  public static Collection<Incident> getIncidentsWithinBoxAndTime(final BoundingBox bbox, LocalDate from, LocalDate to) {
     final Collection<Incident> incidents = new LinkedList<>();
     @SuppressWarnings("boxing")
     final BasicDBObject query = new BasicDBObject("longlat",
@@ -152,10 +127,10 @@ public class MongoData {
           }
         )
       )
-    ).append("reportDateTime",
+    ).append("reportDate",
       new BasicDBObject()
-        .append("$gte", from)
-        .append("$lte", to)
+        .append("$gte", from.toString())
+        .append("$lte", to.toString())
     );
     
     try (final DBCursor cursor = incidentsCollection.find(query)) {
@@ -166,21 +141,20 @@ public class MongoData {
     return incidents;
   }
   
-  public static Collection<Incident> getIncidentsWithinPolyAndTime(final double[][] polyPoints, long from, long to) {
+  public static Collection<Incident> getIncidentsWithinPolyAndTime(final double[][] polyPoints, LocalDate from, LocalDate to) {
     final Collection<Incident> incidents = new LinkedList<>();
     final BasicDBList coordinates = new BasicDBList();
     coordinates.add(polyPoints);
-    @SuppressWarnings("boxing")
     final BasicDBObject query = new BasicDBObject("longlat",
       new BasicDBObject("$geoWithin",
         new BasicDBObject("$geometry",
           new BasicDBObject().append("type", "Polygon").append("coordinates", coordinates)
         )
       )
-    ).append("reportDateTime",
+    ).append("reportDate",
       new BasicDBObject()
-        .append("$gte", from)
-        .append("$lte", to)
+        .append("$gte", from.toString())
+        .append("$lte", to.toString())
     );
     
     try(final DBCursor cursor = incidentsCollection.find(query)) {
@@ -223,29 +197,6 @@ public class MongoData {
       }
     }
     return image;
-  }
-  
-  @SuppressWarnings("boxing")
-  public static void extractAndSaveIncidentReportDateTime() {
-    System.out.println("main()");
-    // TODO remove mdy format
-    SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
-    try(final DBCursor all = incidentsCollection.find()) {
-      while (all.hasNext()) {
-        try {
-          final DBObject dbo = all.next();
-          final String dateString = dbo.get("reportDate").toString();
-          final Date date = sdf.parse(dateString);
-          dbo.put("reportDateTime", date.getTime());
-          incidentsCollection.update(new BasicDBObject("_id", dbo.get("_id")), dbo);
-        } catch (ParseException e) {
-          e.printStackTrace();
-          continue;
-        }
-      }
-    }
-    System.out.println("System.exit(0)");
-    System.exit(0);
   }
   
   public static Set<Incident> searchIncidentsByType(final String type) {

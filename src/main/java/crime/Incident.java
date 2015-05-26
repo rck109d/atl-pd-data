@@ -1,6 +1,5 @@
 package crime;
 
-import java.text.ParseException;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -47,9 +46,8 @@ public final class Incident {
   final String                      shift;
   final String                      location;
   final String                      reportDate;
-  final long                        reportDateTime;
   
-  public static Incident create(Element element) throws NumberFormatException, ParseException {
+  public static Incident create(Element element) throws NumberFormatException {
     final String id = getElementTextByTag(element, "id");
     final String npu = getElementTextByTag(element, "npu");
     final String beat = getElementTextByTag(element, "beat");
@@ -65,11 +63,10 @@ public final class Incident {
     if(reportDate.contains("/")) {
       reportDate = LocalDate.from(Utilities.slashyMdy().parse(reportDate)).toString();
     }
-    final long reportDateTime = Utilities.isoDate().parse(reportDate).getTime();
-    return new Incident(id, npu, beat, marker, neighborhood, number, Double.parseDouble(longitude), Double.parseDouble(latitude), type, shift, location, reportDate, reportDateTime);
+    return new Incident(id, npu, beat, marker, neighborhood, number, Double.parseDouble(longitude), Double.parseDouble(latitude), type, shift, location, reportDate);
   }
   
-  public Incident(String id, String npu, String beat, String marker, String neighborhood, String number, double longitude, double latitude, String type, String shift, String location, String reportDate, long reportDateTime) {
+  public Incident(String id, String npu, String beat, String marker, String neighborhood, String number, double longitude, double latitude, String type, String shift, String location, String reportDate) {
     super();
     this.id = id;
     this.npu = npu;
@@ -83,7 +80,6 @@ public final class Incident {
     this.shift = shift;
     this.location = location;
     this.reportDate = reportDate;
-    this.reportDateTime = reportDateTime;
   }
   
   public final String getId() {
